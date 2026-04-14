@@ -20,3 +20,19 @@ lint-fix:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+## Local network targets
+
+.PHONY: localnet-init localnet-start localnet-stop localnet
+
+localnet-init: build ## Initialize a local single-node chain (config only, does not start)
+	CONFIG_ONLY=true ./scripts/local-node.sh
+
+localnet-start: build ## Start a local single-node chain in the foreground
+	RUN_MODE=foreground ./scripts/local-node.sh
+
+localnet: build ## Start a local single-node chain in the background
+	RUN_MODE=background ./scripts/local-node.sh
+
+localnet-stop: ## Stop the running local node
+	./scripts/kill-local-node.sh

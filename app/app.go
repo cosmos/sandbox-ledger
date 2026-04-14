@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	goruntime "runtime"
 
@@ -25,6 +26,9 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	evmante "github.com/cosmos/evm/ante"
 	antetypes "github.com/cosmos/evm/ante/types"
+	cosmosevmcmd "github.com/cosmos/evm/client"
+	evmdebug "github.com/cosmos/evm/client/debug"
+	"github.com/cosmos/evm/crypto/hd"
 	evmencoding "github.com/cosmos/evm/encoding"
 	evmaddress "github.com/cosmos/evm/encoding/address"
 	evmconfig "github.com/cosmos/evm/evmd/config"
@@ -33,9 +37,6 @@ import (
 	cosmosevmserver "github.com/cosmos/evm/server"
 	srvflags "github.com/cosmos/evm/server/flags"
 	"github.com/cosmos/evm/utils"
-	cosmosevmcmd "github.com/cosmos/evm/client"
-	evmdebug "github.com/cosmos/evm/client/debug"
-	"github.com/cosmos/evm/crypto/hd"
 	"github.com/cosmos/evm/x/erc20"
 	erc20keeper "github.com/cosmos/evm/x/erc20/keeper"
 	erc20types "github.com/cosmos/evm/x/erc20/types"
@@ -98,6 +99,7 @@ import (
 	signingtypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	"github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	"github.com/cosmos/cosmos-sdk/x/auth/posthandler"
@@ -133,13 +135,13 @@ const appName = "sandboxd"
 
 // maccPerms are the module account permissions for this chain.
 var maccPerms = map[string][]string{
-	authtypes.FeeCollectorName: nil,
-	govtypes.ModuleName:        {authtypes.Burner},
-	poatypes.ModuleName:        nil,
+	authtypes.FeeCollectorName:  nil,
+	govtypes.ModuleName:         {authtypes.Burner},
+	poatypes.ModuleName:         nil,
 	ibctransfertypes.ModuleName: {authtypes.Minter, authtypes.Burner},
-	evmtypes.ModuleName:        {authtypes.Minter, authtypes.Burner},
-	feemarkettypes.ModuleName:  nil,
-	erc20types.ModuleName:      {authtypes.Minter, authtypes.Burner},
+	evmtypes.ModuleName:         {authtypes.Minter, authtypes.Burner},
+	feemarkettypes.ModuleName:   nil,
+	erc20types.ModuleName:       {authtypes.Minter, authtypes.Burner},
 }
 
 // ----------------------------------------------------------------------------
@@ -591,15 +593,15 @@ func (app *SandboxApp) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) 
 func (app *SandboxApp) Configurator() module.Configurator { return app.configurator }
 func (app *SandboxApp) Name() string                      { return app.BaseApp.Name() }
 func (app *SandboxApp) LegacyAmino() *codec.LegacyAmino   { return app.legacyAmino }
-func (app *SandboxApp) AppCodec() codec.Codec              { return app.appCodec }
+func (app *SandboxApp) AppCodec() codec.Codec             { return app.appCodec }
 func (app *SandboxApp) InterfaceRegistry() types.InterfaceRegistry {
 	return app.interfaceRegistry
 }
-func (app *SandboxApp) TxConfig() client.TxConfig  { return app.txConfig }
-func (app *SandboxApp) LoadHeight(h int64) error    { return app.LoadVersion(h) }
+func (app *SandboxApp) TxConfig() client.TxConfig              { return app.txConfig }
+func (app *SandboxApp) LoadHeight(h int64) error               { return app.LoadVersion(h) }
 func (app *SandboxApp) GetKey(s string) *storetypes.KVStoreKey { return app.keys[s] }
-func (app *SandboxApp) GetMempool() sdkmempool.ExtMempool       { return app.EVMMempool }
-func (app *SandboxApp) GetAnteHandler() sdk.AnteHandler          { return app.BaseApp.AnteHandler() }
+func (app *SandboxApp) GetMempool() sdkmempool.ExtMempool      { return app.EVMMempool }
+func (app *SandboxApp) GetAnteHandler() sdk.AnteHandler        { return app.AnteHandler() }
 
 func (app *SandboxApp) DefaultGenesis() map[string]json.RawMessage {
 	genesis := app.BasicModuleManager.DefaultGenesis(app.appCodec)
@@ -611,6 +613,10 @@ func (app *SandboxApp) DefaultGenesis() map[string]json.RawMessage {
 // ---------- handlers ----------
 
 func (app *SandboxApp) setAnteHandler(txConfig client.TxConfig, maxGasWanted uint64) {
+	// Set the global fee recipient to POA before constructing the handler.
+	// The POA module checks this at EndBlock height 1.
+	ante.FeeRecipientModule = poatypes.ModuleName
+
 	options := evmante.HandlerOptions{
 		Cdc:                    app.appCodec,
 		AccountKeeper:          app.AccountKeeper,
@@ -628,7 +634,7 @@ func (app *SandboxApp) setAnteHandler(txConfig client.TxConfig, maxGasWanted uin
 	if err := options.Validate(); err != nil {
 		panic(err)
 	}
-	app.SetAnteHandler(evmante.NewAnteHandler(options))
+	app.SetAnteHandler(NewPOAEVMAnteHandler(options))
 }
 
 func (app *SandboxApp) onPendingTx(hash common.Hash) {
@@ -667,7 +673,7 @@ func (app *SandboxApp) configureEVMMempool(appOpts servertypes.AppOptions, logge
 		app.FeeMarketKeeper,
 		app.txConfig,
 		&evmmempool.EVMMempoolConfig{
-			AnteHandler:      app.BaseApp.AnteHandler(),
+			AnteHandler:      app.AnteHandler(),
 			LegacyPoolConfig: cosmosevmserver.GetLegacyPoolConfig(appOpts, logger),
 			BlockGasLimit:    cosmosevmserver.GetBlockGasLimit(appOpts, logger),
 			MinTip:           cosmosevmserver.GetMinTip(appOpts, logger),
@@ -912,7 +918,24 @@ func newApp(
 	db dbm.DB,
 	appOpts servertypes.AppOptions,
 ) cosmosevmserver.Application {
-	return NewApp(logger, db, nil, true, appOpts)
+	return NewApp(logger, db, nil, true, appOpts,
+		baseapp.SetChainID(chainIDFromOpts(appOpts)),
+	)
+}
+
+func chainIDFromOpts(appOpts servertypes.AppOptions) string {
+	chainID := cast.ToString(appOpts.Get(flags.FlagChainID))
+	if chainID == "" {
+		home := cast.ToString(appOpts.Get(flags.FlagHome))
+		if home != "" {
+			genFile := filepath.Join(home, "config", "genesis.json")
+			appGenesis, err := genutiltypes.AppGenesisFromFile(genFile)
+			if err == nil {
+				chainID = appGenesis.ChainID
+			}
+		}
+	}
+	return chainID
 }
 
 // appExport creates a new app and exports state.
@@ -943,4 +966,3 @@ func appExport(
 	}
 	return a.ExportAppStateAndValidators(forZeroHeight, jailAllowedAddrs, modulesToExport)
 }
-
