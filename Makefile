@@ -36,3 +36,20 @@ localnet: build ## Start a local single-node chain in the background
 
 localnet-stop: ## Stop the running local node
 	./scripts/kill-local-node.sh
+
+## Contract deployment targets
+
+.PHONY: contracts-setup contracts-build deploy-zeto contracts-clean
+
+contracts-setup: ## Install Forge dependencies for Zeto contracts
+	cd contracts && forge install
+
+contracts-build: ## Compile all Zeto contracts
+	cd contracts && forge build
+
+deploy-zeto: build ## Deploy Zeto privacy contracts to the local chain
+	cd contracts && bash deploy-zeto.sh
+
+contracts-clean: ## Remove contract build artifacts
+	cd contracts && forge clean
+	rm -rf contracts/out contracts/cache contracts/broadcast

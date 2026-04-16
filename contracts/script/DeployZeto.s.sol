@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.27;
+
+import "forge-std/Script.sol";
+
+// --- Verifier contracts (33) ---
+import {Groth16Verifier_Anon} from "zeto/verifiers/verifier_anon.sol";
+import {Groth16Verifier_AnonBatch} from "zeto/verifiers/verifier_anon_batch.sol";
+import {Groth16Verifier_AnonEnc} from "zeto/verifiers/verifier_anon_enc.sol";
+import {Groth16Verifier_AnonEncBatch} from "zeto/verifiers/verifier_anon_enc_batch.sol";
+import {Groth16Verifier_AnonEncNullifier} from "zeto/verifiers/verifier_anon_enc_nullifier.sol";
+import {Groth16Verifier_AnonEncNullifierBatch} from "zeto/verifiers/verifier_anon_enc_nullifier_batch.sol";
+// SKIPPED: token impl exceeds EIP-170 size limit
+// import {Groth16Verifier_AnonEncNullifierKyc} from "zeto/verifiers/verifier_anon_enc_nullifier_kyc.sol";
+// import {Groth16Verifier_AnonEncNullifierKycBatch} from "zeto/verifiers/verifier_anon_enc_nullifier_kyc_batch.sol";
+// SKIPPED: exceeds EIP-170 24576 byte contract size limit
+// import {Groth16Verifier_AnonEncNullifierNonRepudiation} from "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation.sol";
+// import {Groth16Verifier_AnonEncNullifierNonRepudiationBatch} from "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation_batch.sol";
+import {Groth16Verifier_AnonNullifierTransfer} from "zeto/verifiers/verifier_anon_nullifier_transfer.sol";
+import {Groth16Verifier_AnonNullifierTransferBatch} from "zeto/verifiers/verifier_anon_nullifier_transfer_batch.sol";
+import {Groth16Verifier_AnonNullifierTransferLocked} from "zeto/verifiers/verifier_anon_nullifier_transferLocked.sol";
+import {Groth16Verifier_AnonNullifierTransferLockedBatch} from "zeto/verifiers/verifier_anon_nullifier_transferLocked_batch.sol";
+import {Groth16Verifier_AnonNullifierKycTransfer} from "zeto/verifiers/verifier_anon_nullifier_kyc_transfer.sol";
+import {Groth16Verifier_AnonNullifierKycTransferBatch} from "zeto/verifiers/verifier_anon_nullifier_kyc_transfer_batch.sol";
+import {Groth16Verifier_AnonNullifierKycTransferLocked} from "zeto/verifiers/verifier_anon_nullifier_kyc_transferLocked.sol";
+import {Groth16Verifier_AnonNullifierKycTransferLockedBatch} from "zeto/verifiers/verifier_anon_nullifier_kyc_transferLocked_batch.sol";
+import {Groth16Verifier_AnonNullifierQurrencyTransfer} from "zeto/verifiers/verifier_anon_nullifier_qurrency_transfer.sol";
+import {Groth16Verifier_AnonNullifierQurrencyTransferBatch} from "zeto/verifiers/verifier_anon_nullifier_qurrency_transfer_batch.sol";
+import {Groth16Verifier_Deposit} from "zeto/verifiers/verifier_deposit.sol";
+import {Groth16Verifier_DepositKyc} from "zeto/verifiers/verifier_deposit_kyc.sol";
+import {Groth16Verifier_Withdraw} from "zeto/verifiers/verifier_withdraw.sol";
+import {Groth16Verifier_WithdrawBatch} from "zeto/verifiers/verifier_withdraw_batch.sol";
+import {Groth16Verifier_WithdrawNullifier} from "zeto/verifiers/verifier_withdraw_nullifier.sol";
+import {Groth16Verifier_WithdrawNullifierBatch} from "zeto/verifiers/verifier_withdraw_nullifier_batch.sol";
+import {Groth16Verifier_Burn} from "zeto/verifiers/verifier_burn.sol";
+import {Groth16Verifier_BurnBatch} from "zeto/verifiers/verifier_burn_batch.sol";
+import {Groth16Verifier_BurnNullifier} from "zeto/verifiers/verifier_burn_nullifier.sol";
+import {Groth16Verifier_BurnNullifierBatch} from "zeto/verifiers/verifier_burn_nullifier_batch.sol";
+import {Groth16Verifier_NfAnon} from "zeto/verifiers/verifier_nf_anon.sol";
+import {Groth16Verifier_NfAnonNullifierTransfer} from "zeto/verifiers/verifier_nf_anon_nullifier_transfer.sol";
+import {Groth16Verifier_NfAnonNullifierTransferLocked} from "zeto/verifiers/verifier_nf_anon_nullifier_transferLocked.sol";
+
+// --- Token implementations (12) ---
+import {Zeto_Anon} from "zeto/zeto_anon.sol";
+import {Zeto_AnonBurnable} from "zeto/zeto_anon_burnable.sol";
+import {Zeto_AnonEnc} from "zeto/zeto_anon_enc.sol";
+import {Zeto_AnonNullifier} from "zeto/zeto_anon_nullifier.sol";
+import {Zeto_AnonEncNullifier} from "zeto/zeto_anon_enc_nullifier.sol";
+// SKIPPED: exceeds EIP-170 24576 byte contract size limit
+// import {Zeto_AnonEncNullifierKyc} from "zeto/zeto_anon_enc_nullifier_kyc.sol";
+// import {Zeto_AnonEncNullifierNonRepudiation} from "zeto/zeto_anon_enc_nullifier_non_repudiation.sol";
+import {Zeto_AnonNullifierKyc} from "zeto/zeto_anon_nullifier_kyc.sol";
+import {Zeto_AnonNullifierBurnable} from "zeto/zeto_anon_nullifier_burnable.sol";
+import {Zeto_AnonNullifierQurrency} from "zeto/zeto_anon_nullifier_qurrency.sol";
+import {Zeto_NfAnon} from "zeto/zeto_nf_anon.sol";
+import {Zeto_NfAnonNullifier} from "zeto/zeto_nf_anon_nullifier.sol";
+
+// --- Factory ---
+import {ZetoTokenFactory} from "zeto/factory.sol";
+import {IZetoInitializable} from "zeto/lib/interfaces/izeto_initializable.sol";
+import {IGroth16Verifier} from "zeto/lib/interfaces/izeto_verifier.sol";
+
+contract DeployZeto is Script {
+    IGroth16Verifier constant ZERO = IGroth16Verifier(address(0));
+
+    function run() external {
+        vm.startBroadcast();
+
+        // =====================================================================
+        // 1. Deploy verifier contracts
+        // =====================================================================
+
+        // Shared verifiers
+        address depositV = address(new Groth16Verifier_Deposit());
+        address depositKycV = address(new Groth16Verifier_DepositKyc());
+        address withdrawV = address(new Groth16Verifier_Withdraw());
+        address withdrawBatchV = address(new Groth16Verifier_WithdrawBatch());
+        address withdrawNullV = address(new Groth16Verifier_WithdrawNullifier());
+        address withdrawNullBatchV = address(new Groth16Verifier_WithdrawNullifierBatch());
+
+        // Anon
+        address anonV = address(new Groth16Verifier_Anon());
+        address anonBatchV = address(new Groth16Verifier_AnonBatch());
+
+        // AnonEnc
+        address anonEncV = address(new Groth16Verifier_AnonEnc());
+        address anonEncBatchV = address(new Groth16Verifier_AnonEncBatch());
+
+        // AnonNullifier
+        address anonNullV = address(new Groth16Verifier_AnonNullifierTransfer());
+        address anonNullBatchV = address(new Groth16Verifier_AnonNullifierTransferBatch());
+        address anonNullLockedV = address(new Groth16Verifier_AnonNullifierTransferLocked());
+        address anonNullLockedBatchV = address(new Groth16Verifier_AnonNullifierTransferLockedBatch());
+
+        // AnonEncNullifier
+        address anonEncNullV = address(new Groth16Verifier_AnonEncNullifier());
+        address anonEncNullBatchV = address(new Groth16Verifier_AnonEncNullifierBatch());
+
+        // AnonEncNullifierKyc — verifiers skipped (token impl exceeds EIP-170 size limit)
+
+        // AnonEncNullifierNonRepudiation — SKIPPED (exceeds EIP-170 size limit)
+
+        // AnonNullifierKyc
+        address anonNullKycV = address(new Groth16Verifier_AnonNullifierKycTransfer());
+        address anonNullKycBatchV = address(new Groth16Verifier_AnonNullifierKycTransferBatch());
+        address anonNullKycLockedV = address(new Groth16Verifier_AnonNullifierKycTransferLocked());
+        address anonNullKycLockedBatchV = address(new Groth16Verifier_AnonNullifierKycTransferLockedBatch());
+
+        // AnonNullifierQurrency
+        address anonNullQurrV = address(new Groth16Verifier_AnonNullifierQurrencyTransfer());
+        address anonNullQurrBatchV = address(new Groth16Verifier_AnonNullifierQurrencyTransferBatch());
+
+        // Burn
+        address burnV = address(new Groth16Verifier_Burn());
+        address burnBatchV = address(new Groth16Verifier_BurnBatch());
+        address burnNullV = address(new Groth16Verifier_BurnNullifier());
+        address burnNullBatchV = address(new Groth16Verifier_BurnNullifierBatch());
+
+        // NF
+        address nfAnonV = address(new Groth16Verifier_NfAnon());
+        address nfAnonNullV = address(new Groth16Verifier_NfAnonNullifierTransfer());
+        address nfAnonNullLockedV = address(new Groth16Verifier_NfAnonNullifierTransferLocked());
+
+        // =====================================================================
+        // 2. Deploy token implementation contracts (bare, not initialized)
+        // =====================================================================
+
+        address implAnon = address(new Zeto_Anon());
+        address implAnonBurnable = address(new Zeto_AnonBurnable());
+        address implAnonEnc = address(new Zeto_AnonEnc());
+        address implAnonNullifier = address(new Zeto_AnonNullifier());
+        address implAnonEncNullifier = address(new Zeto_AnonEncNullifier());
+        // SKIPPED: Zeto_AnonEncNullifierKyc and Zeto_AnonEncNullifierNonRepudiation
+        // exceed EIP-170 24576 byte contract size limit
+        address implAnonNullifierKyc = address(new Zeto_AnonNullifierKyc());
+        address implAnonNullifierBurnable = address(new Zeto_AnonNullifierBurnable());
+        address implAnonNullifierQurrency = address(new Zeto_AnonNullifierQurrency());
+        address implNfAnon = address(new Zeto_NfAnon());
+        address implNfAnonNullifier = address(new Zeto_NfAnonNullifier());
+
+        // =====================================================================
+        // 3. Deploy factory
+        // =====================================================================
+
+        ZetoTokenFactory factory = new ZetoTokenFactory();
+
+        // =====================================================================
+        // 4. Register all implementations with the factory
+        // =====================================================================
+
+        // 4.1 Zeto_Anon
+        factory.registerImplementation(
+            "Zeto_Anon",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnon,
+                verifiers: _verifiers(anonV, depositV, withdrawV, anonV, address(0), anonBatchV, withdrawBatchV, anonBatchV, address(0))
+            })
+        );
+
+        // 4.2 Zeto_AnonBurnable
+        factory.registerImplementation(
+            "Zeto_AnonBurnable",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonBurnable,
+                verifiers: _verifiers(anonV, depositV, withdrawV, address(0), burnV, anonBatchV, withdrawBatchV, address(0), burnBatchV)
+            })
+        );
+
+        // 4.3 Zeto_AnonEnc
+        factory.registerImplementation(
+            "Zeto_AnonEnc",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonEnc,
+                verifiers: _verifiers(anonEncV, depositV, withdrawV, address(0), address(0), anonEncBatchV, withdrawBatchV, address(0), address(0))
+            })
+        );
+
+        // 4.4 Zeto_AnonNullifier
+        factory.registerImplementation(
+            "Zeto_AnonNullifier",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonNullifier,
+                verifiers: _verifiers(anonNullV, depositV, withdrawNullV, anonNullLockedV, address(0), anonNullBatchV, withdrawNullBatchV, anonNullLockedBatchV, address(0))
+            })
+        );
+
+        // 4.5 Zeto_AnonEncNullifier
+        factory.registerImplementation(
+            "Zeto_AnonEncNullifier",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonEncNullifier,
+                verifiers: _verifiers(anonEncNullV, depositV, withdrawNullV, address(0), address(0), anonEncNullBatchV, withdrawNullBatchV, address(0), address(0))
+            })
+        );
+
+        // 4.6-4.7 SKIPPED: Zeto_AnonEncNullifierKyc and Zeto_AnonEncNullifierNonRepudiation
+        // exceed EIP-170 24576 byte contract size limit
+
+        // 4.8 Zeto_AnonNullifierKyc
+        factory.registerImplementation(
+            "Zeto_AnonNullifierKyc",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonNullifierKyc,
+                verifiers: _verifiers(anonNullKycV, depositKycV, withdrawNullV, anonNullKycLockedV, address(0), anonNullKycBatchV, withdrawNullBatchV, anonNullKycLockedBatchV, address(0))
+            })
+        );
+
+        // 4.9 Zeto_AnonNullifierBurnable
+        factory.registerImplementation(
+            "Zeto_AnonNullifierBurnable",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonNullifierBurnable,
+                verifiers: _verifiers(anonNullV, depositV, withdrawNullV, anonNullLockedV, burnNullV, anonNullBatchV, withdrawNullBatchV, anonNullLockedBatchV, burnNullBatchV)
+            })
+        );
+
+        // 4.10 Zeto_AnonNullifierQurrency
+        factory.registerImplementation(
+            "Zeto_AnonNullifierQurrency",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implAnonNullifierQurrency,
+                verifiers: _verifiers(anonNullQurrV, depositV, withdrawNullV, address(0), address(0), anonNullQurrBatchV, withdrawNullBatchV, address(0), address(0))
+            })
+        );
+
+        // 4.11 Zeto_NfAnon
+        factory.registerImplementation(
+            "Zeto_NfAnon",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implNfAnon,
+                verifiers: _verifiers(nfAnonV, address(0), address(0), nfAnonV, address(0), address(0), address(0), address(0), address(0))
+            })
+        );
+
+        // 4.12 Zeto_NfAnonNullifier
+        factory.registerImplementation(
+            "Zeto_NfAnonNullifier",
+            ZetoTokenFactory.ImplementationInfo({
+                implementation: implNfAnonNullifier,
+                verifiers: _verifiers(nfAnonNullV, address(0), address(0), nfAnonNullLockedV, address(0), address(0), address(0), address(0), address(0))
+            })
+        );
+
+        // =====================================================================
+        // Log key addresses
+        // =====================================================================
+
+        console.log("=== ZetoTokenFactory ===");
+        console.log("Factory:", address(factory));
+
+        vm.stopBroadcast();
+    }
+
+    function _verifiers(
+        address verifier,
+        address depositVerifier,
+        address withdrawVerifier,
+        address lockVerifier,
+        address burnVerifier,
+        address batchVerifier,
+        address batchWithdrawVerifier,
+        address batchLockVerifier,
+        address batchBurnVerifier
+    ) internal pure returns (IZetoInitializable.VerifiersInfo memory) {
+        return IZetoInitializable.VerifiersInfo({
+            verifier: IGroth16Verifier(verifier),
+            depositVerifier: IGroth16Verifier(depositVerifier),
+            withdrawVerifier: IGroth16Verifier(withdrawVerifier),
+            lockVerifier: IGroth16Verifier(lockVerifier),
+            burnVerifier: IGroth16Verifier(burnVerifier),
+            batchVerifier: IGroth16Verifier(batchVerifier),
+            batchWithdrawVerifier: IGroth16Verifier(batchWithdrawVerifier),
+            batchLockVerifier: IGroth16Verifier(batchLockVerifier),
+            batchBurnVerifier: IGroth16Verifier(batchBurnVerifier)
+        });
+    }
+}

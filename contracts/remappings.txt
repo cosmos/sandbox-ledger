@@ -1,0 +1,5 @@
+zeto/=lib/zeto/solidity/contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@iden3/contracts/contracts/=lib/iden3-contracts/contracts/
+forge-std/=lib/forge-std/src/
