@@ -146,21 +146,48 @@ var maccPerms = map[string][]string{
 
 // ----------------------------------------------------------------------------
 // poaStakingKeeper satisfies the EVM and ERC-20 StakingKeeper interfaces
-// without the staking module. Only BondDenom and ValidatorAddressCodec are
-// meaningful; the remaining methods return errors, which the EVM handles
-// gracefully (e.g. BLOCKHASH returns 0, coinbase returns the zero address).
+// without the staking module. It delegates validator lookups to the POA keeper
+// so the EVM can resolve the block proposer's coinbase address.
 // ----------------------------------------------------------------------------
 
 type poaStakingKeeper struct {
 	denom     string
 	addrCodec address.Codec
+	poa       *poakeeper.Keeper
 }
 
 func (k poaStakingKeeper) GetHistoricalInfo(_ context.Context, _ int64) (stakingtypes.HistoricalInfo, error) {
 	return stakingtypes.HistoricalInfo{}, stakingtypes.ErrNoHistoricalInfo
 }
-func (k poaStakingKeeper) GetValidatorByConsAddr(_ context.Context, _ sdk.ConsAddress) (stakingtypes.Validator, error) {
-	return stakingtypes.Validator{}, stakingtypes.ErrNoValidatorFound
+func (k poaStakingKeeper) GetValidatorByConsAddr(ctx context.Context, consAddr sdk.ConsAddress) (stakingtypes.Validator, error) {
+	if k.poa == nil {
+		return stakingtypes.Validator{}, stakingtypes.ErrNoValidatorFound
+	}
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	var found stakingtypes.Validator
+	var matched bool
+	err := k.poa.IterateActiveValidators(sdkCtx, func(ca sdk.ConsAddress, _ int64, v poatypes.Validator) (bool, error) {
+		if ca.Equals(consAddr) {
+			// The POA operator_address uses the account prefix (cosmos1...),
+			// but the EVM expects the validator operator prefix (cosmosvaloper1...).
+			// Convert by re-encoding the same bytes with the valoper prefix.
+			accAddr, convErr := sdk.AccAddressFromBech32(v.Metadata.OperatorAddress)
+			if convErr != nil {
+				return true, convErr
+			}
+			valAddr := sdk.ValAddress(accAddr)
+			found = stakingtypes.Validator{
+				OperatorAddress: valAddr.String(),
+			}
+			matched = true
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil || !matched {
+		return stakingtypes.Validator{}, stakingtypes.ErrNoValidatorFound
+	}
+	return found, nil
 }
 func (k poaStakingKeeper) ValidatorAddressCodec() address.Codec { return k.addrCodec }
 func (k poaStakingKeeper) BondDenom(_ context.Context) (string, error) {
@@ -387,6 +414,7 @@ func NewApp(
 	stakingAdapter := poaStakingKeeper{
 		denom:     sdk.DefaultBondDenom,
 		addrCodec: evmaddress.NewEvmCodec(sdk.GetConfig().GetBech32ValidatorAddrPrefix()),
+		poa:       app.POAKeeper,
 	}
 
 	// EVM
