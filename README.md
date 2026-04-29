@@ -1,40 +1,169 @@
 # sandbox-ledger
 
-A Cosmos SDK blockchain combining Proof-of-Authority validator management with full EVM compatibility and IBC interoperability.
+A Cosmos SDK chain with Proof-of-Authority consensus, full EVM compatibility,
+and IBC v2 transfers. Includes a token-factory module and an IFT (Interchain
+Fungible Token) bridge built on top of ICS-27 GMP for cross-chain mint/burn.
 
-## Modules
+## What's in the box
 
 | Module | Purpose |
-|--------|---------|
-| **auth / bank** | Account management and token transfers |
-| **POA** | Proof-of-Authority validator set management and fee distribution (replaces staking) |
-| **EVM** | Ethereum Virtual Machine execution (vm + feemarket + erc20) |
-| **IBC** | Inter-Blockchain Communication with transfer, ERC-20 middleware, and callbacks |
-| **gov** | On-chain governance with POA-weighted voting power |
+|---|---|
+| **auth / bank** | Account management and bank transfers |
+| **POA** | Validator set + fee distribution (replaces staking / distribution / slashing / mint) |
+| **gov** | On-chain governance, voting power weighted by POA |
 | **upgrade** | Coordinated chain upgrades |
+| **EVM** (vm + feemarket + erc20) | Ethereum execution, ETH JSON-RPC, ERC-20 ↔ Cosmos coin conversion |
+| **IBC core + transfer (v1 + v2)** | Standard IBC + IBC v2 packet path |
+| **IBC callbacks (v1 + v2)** | Lets contracts/modules receive ack & timeout callbacks on transfer / GMP packets |
+| **27-gmp** | ICS-27 General Message Passing — IBC v2 cross-chain `MsgSendCall` |
+| **tokenfactory** | Permissionless `factory/<creator>/<sub>` token creation; admin-gated mint/burn |
+| **ift** | Interchain Fungible Token bridge: pairs a tokenfactory denom with a counterparty contract over GMP, with EVM, Cosmos-tx, and Solana mint constructors |
 
 ## Architecture
 
-- **No staking, distribution, slashing, or mint modules.** The POA module manages the validator set directly via an admin authority, and distributes fees to validators proportionally.
-- **EVM precompiles** include Prague, P256, Bech32, Bank, Gov, and ICS02. Precompiles that depend on staking/distribution/slashing (staking, distribution, slashing, ICS20, vesting) are disabled.
-- **Fees are routed to the POA module account**, not the standard fee collector, enabling POA-controlled fee distribution.
-- **EVM transactions** are handled by the Cosmos EVM ante handler, which supports both Ethereum and Cosmos SDK transaction types.
+- **No staking, distribution, slashing, or mint modules.** POA manages
+  validators directly via an admin authority and distributes collected fees
+  to validators proportionally.
+- **Fees** route to the POA module account, not the standard fee collector.
+- **EVM precompiles** active on this chain: Prague, P256, Bech32, Bank, Gov,
+  ICS-02. Disabled: staking / distribution / slashing / ICS-20 / vesting
+  (their backing modules aren't included).
+- **IBC v2 routing**:
+  - `transfer` port → transfer-v2 → erc20-v2 middleware
+  - `gmpport` (ICS-27) → gmp module → callbacks-v2 middleware → IFT keeper
+- **IFT bridge model**: a registered bridge associates a tokenfactory denom
+  with `(client_id, counterparty_contract, constructor_type)`. Outgoing
+  transfers burn locally and emit a GMP `MsgSendCall` carrying a constructor-
+  serialized mint payload; incoming `MsgIFTMint` from the counterparty mints
+  via the tokenfactory keeper.
 
 ## Build
 
+Requires Go 1.25 and `buf` on your `PATH`.
+
 ```bash
-make build    # outputs build/sandboxd
-make install  # installs to $GOPATH/bin
+brew install bufbuild/buf/buf            # one-time
+make build                                # regenerates *.pb.go, then compiles
 ```
 
-## Usage
+`make build` runs the full proto pipeline (clean → buf generate → go build) so
+the binary is always in sync with the `.proto` sources. Output: `build/sandboxd`.
+
+### Other targets
 
 ```bash
-# Initialize the node
-sandboxd init <moniker> --chain-id <chain-id>
+make test                # go test ./...
+make lint                # golangci-lint
+make proto-all           # proto-format + proto-lint + proto-gen
+make proto-tools         # install protoc-gen-gocosmos + grpc-gateway
+make proto-gen-docker    # Docker fallback (no host tooling required)
+make clean               # rm -rf build/
+```
 
-# Start the node
+See the `proto-*` and `proto-*-docker` blocks in the [Makefile](Makefile) for
+the full set.
+
+## Run a local node
+
+```bash
+make localnet-start    # foreground, fresh chain
+make localnet          # background
+make localnet-stop     # kill
+make localnet-init     # generate config only, don't start
+```
+
+The script ([scripts/local-node.sh](scripts/local-node.sh)) initializes a
+single-validator POA chain with deterministic mnemonics, patches genesis with
+EVM/POA/gov defaults, enables the API and JSON-RPC servers, and starts on:
+
+| Port | Service |
+|---|---|
+| 26656 | CometBFT P2P |
+| 26657 | CometBFT RPC |
+| 9090  | gRPC |
+| 1317  | REST API (LCD) |
+| 8545 / 8546 | EVM JSON-RPC (HTTP / WS) |
+
+Default chain ID: `sandbox-dev-1`, EVM chain ID `19460`, denom `astake`.
+
+## Manual init (without the script)
+
+```bash
+sandboxd init <moniker> --chain-id <chain-id>          # writes ~/.sandboxd
+sandboxd genesis add-genesis-account <addr> 1000000000stake
+# … patch POA validator into genesis (see scripts/local-node.sh) …
 sandboxd start
-
-# EVM JSON-RPC is available when configured
 ```
+
+`sandboxd init` produces a self-consistent genesis: bank denom metadata for
+the EVM denom is injected automatically, so the chain boots without external
+patching. POA still requires you to inject at least one validator before
+`start` — that step depends on the node's consensus key and has to happen
+after `init` (the sample script handles this).
+
+## Container
+
+```bash
+docker build -t sandbox-ledger .
+docker run --rm -v sandbox-data:/data \
+  -p 26657:26657 -p 9090:9090 -p 1317:1317 -p 8545:8545 \
+  sandbox-ledger
+```
+
+Image notes:
+- Runs as non-root (`sandbox`, UID 1000). The binary at `/bin/sandboxd` is
+  root-owned `0555`, so the runtime user can execute but not modify it.
+- Chain state lives at `/data` (declared `VOLUME`). Use a named volume or pre-
+  chown a bind mount to UID 1000.
+- The default `CMD` is `start --home=/data`. Override it to run any other
+  subcommand: `docker run … sandbox-ledger init my-node --chain-id sandbox-1`.
+- Kubernetes: set `securityContext.fsGroup: 1000` so the mounted volume is
+  writable by the runtime user.
+
+## EVM contracts (Zeto)
+
+The `contracts/` tree contains the Zeto privacy contracts and a Forge
+deployment script:
+
+```bash
+make contracts-setup     # forge install
+make contracts-build     # forge build
+make deploy-zeto         # deploys to the local chain at $RPC_URL
+```
+
+The script ([contracts/deploy-zeto.sh](contracts/deploy-zeto.sh)) deploys the
+Poseidon hash libraries first (raw bytecode via `cast`), then verifiers,
+tokens, and the factory (Forge script). Deployer key defaults to the
+local-node `user-1` mnemonic; override via `DEPLOYER_MNEMONIC` /
+`PRIVATE_KEY` env vars.
+
+## Layout
+
+```
+app/                  application wiring (modules, ante handler, mempool, root cmd)
+cmd/sandboxd/         binary entrypoint
+proto/sandbox/{ift,tokenfactory}/
+                      .proto sources
+scripts/              local-node bring-up + proto codegen helper
+testutil/             address-prefix init for tests
+x/ift/                Interchain Fungible Token module
+x/tokenfactory/       Token Factory module
+contracts/            Foundry / Forge tree for Zeto privacy contracts
+.github/workflows/    CI (build + lint + Docker publish)
+```
+
+## CI
+
+Three workflows under [.github/workflows/](.github/workflows/):
+- **build.yml** — `make build && make test` on amd64 and arm64.
+- **lint.yml** — golangci-lint on PRs.
+- **docker-publish.yml** — multi-arch image publish to `ghcr.io/<org>/sandbox-ledger`:
+  - PR commits → `pr-<short-sha>` (same-repo only; fork PRs build but don't push)
+  - `main` push → `latest`
+  - manual dispatch → user-supplied tag
+
+## Status
+
+Pre-release. Wire-format identifiers (proto package names, module store keys)
+are stable for development but should be reviewed before any external
+deployment.

@@ -46,7 +46,7 @@ type IBCClientKeeper interface {
 	GetClientState(ctx sdk.Context, clientID string) (ibcexported.ClientState, bool)
 }
 
-// IBCClientKeeper defines the expected interface for the IBC client keeper
+// IBCClientV2Keeper defines the expected interface for the IBCv2 client keeper
 type IBCClientV2Keeper interface {
 	GetClientCounterparty(ctx sdk.Context, clientID string) (clienttypesv2.CounterpartyInfo, bool)
 }

@@ -348,7 +348,7 @@ func TestMsgServer_IFTTransfer(t *testing.T) {
 
 			tc.malleate(wfapp, ctx)
 
-			timeout := uint64(time.Now().Add(30 * time.Second).UnixNano())
+			timeout := uint64(time.Now().Add(30 * time.Second).Unix())
 			msg := &types.MsgIFTTransfer{
 				Signer:           signer,
 				Denom:            denom,
@@ -703,7 +703,7 @@ func TestMsgServer_IFTTransfer_InsufficientBalance(t *testing.T) {
 	mintTokens(t, ctx, wfapp, testDenom, math.NewInt(100), senderAddr)
 
 	// Try to transfer 1000 tokens (more than balance)
-	timeout := uint64(time.Now().Add(30 * time.Second).UnixNano())
+	timeout := uint64(time.Now().Add(30 * time.Second).Unix())
 	msg := &types.MsgIFTTransfer{
 		Signer:           signer,
 		Denom:            denom,

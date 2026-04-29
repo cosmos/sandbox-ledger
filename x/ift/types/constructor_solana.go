@@ -101,6 +101,12 @@ func (s SolanaConstructor) ConstructMintCall(_ codec.BinaryCodec, receiver strin
 	receiverATA := deriveAssociatedTokenAddress(s.Mint, receiverPubkey)
 	gmpAccountPDA, _ := deriveGMPAccountPDA(s.GMPProgramID, s.CounterpartyClientID, s.SenderAddress)
 
+	// Solana programs only accept uint64 amounts; reject anything that wouldn't
+	// round-trip cleanly rather than silently truncating via .Uint64().
+	if !amount.BigInt().IsUint64() {
+		return nil, ErrConstructMintCallFailed.Wrapf("amount %s overflows uint64", amount)
+	}
+
 	// Build instruction data: discriminator + borsh(IFTMintMsg)
 	data, err := buildInstructionData(receiverPubkey, amount.BigInt().Uint64())
 	if err != nil {
