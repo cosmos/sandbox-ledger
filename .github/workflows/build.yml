@@ -1,18 +1,35 @@
-name: Build
+name: Build and Publish
 
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag of the image to build'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  ORG: ${{ github.repository_owner }}
+  IMAGE_NAME: sandbox-ledger
 
 jobs:
   build:
-    name: Build (${{ matrix.runner }})
+    name: Build (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - depot-ubuntu-24.04-4
-          - depot-ubuntu-24.04-arm-4
+        include:
+          - runner: depot-ubuntu-24.04-4
+            arch: amd64
+          - runner: depot-ubuntu-24.04-arm-4
+            arch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -27,3 +44,105 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandboxd-linux-${{ matrix.arch }}
+          path: build/sandboxd
+          if-no-files-found: error
+
+  docker:
+    name: Docker
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Download amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: sandboxd-linux-amd64
+          path: artifacts/amd64
+
+      - name: Download arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: sandboxd-linux-arm64
+          path: artifacts/arm64
+
+      - name: Stage binaries
+        run: |
+          mkdir -p build
+          cp artifacts/amd64/sandboxd build/sandboxd-linux-amd64
+          cp artifacts/arm64/sandboxd build/sandboxd-linux-arm64
+          chmod +x build/sandboxd-linux-amd64 build/sandboxd-linux-arm64
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine push policy
+        id: policy
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" \
+                && "${{ github.event.pull_request.head.repo.full_name }}" \
+                != "${{ github.repository }}" ]]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Container Registry
+        if: steps.policy.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Docker tag
+        id: tags
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request)
+              SHORT_SHA="${GITHUB_HEAD_SHA::7}"
+              DOCKER_TAG="pr-${SHORT_SHA}"
+              ;;
+            workflow_dispatch)
+              DOCKER_TAG="${{ inputs.tag }}"
+              ;;
+            push)
+              if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+                DOCKER_TAG="${GITHUB_REF#refs/tags/}"
+              else
+                DOCKER_TAG="latest"
+              fi
+              ;;
+            *)
+              DOCKER_TAG="${{ github.ref_name }}"
+              ;;
+          esac
+          DOCKER_TAG=$(echo "$DOCKER_TAG" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          echo "DOCKER_TAG=${DOCKER_TAG}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ steps.policy.outputs.push == 'true' }}
+          platforms: linux/amd64,linux/arm64
+          build-args: BUILDTYPE=prebuilt
+          tags: ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.DOCKER_TAG }}
