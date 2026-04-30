@@ -91,5 +91,5 @@ jobs:
         with:
           context: .
           push: ${{ steps.policy.outputs.push == 'true' }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64 #,linux/arm64
           tags: ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.DOCKER_TAG }}
