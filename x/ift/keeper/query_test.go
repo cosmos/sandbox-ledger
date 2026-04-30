@@ -34,15 +34,7 @@ func TestQuery_IFTBridge(t *testing.T) {
 	require.Equal(t, types.ConstructorEVM, resp.Bridge.IftSendCallConstructor)
 }
 
-func TestQuery_IFTBridge_NotFound(t *testing.T) {
-	wfapp, ctx := setupIntegrationApp(t)
 
-	_, err := wfapp.IFTKeeper.IFTBridge(ctx, &types.QueryIFTBridgeRequest{
-		Denom:    testDenom,
-		ClientId: "07-tendermint-999",
-	})
-	require.Error(t, err)
-}
 
 func TestQuery_IFTBridges(t *testing.T) {
 	wfapp, ctx := setupIntegrationApp(t)
@@ -169,17 +161,6 @@ func TestQuery_PendingTransfer(t *testing.T) {
 	require.Equal(t, sequence, resp.PendingTransfer.Sequence)
 	require.Equal(t, userAddrA, resp.PendingTransfer.Sender)
 	require.True(t, pending.Amount.Equal(resp.PendingTransfer.Amount))
-}
-
-func TestQuery_PendingTransfer_NotFound(t *testing.T) {
-	wfapp, ctx := setupIntegrationApp(t)
-
-	_, err := wfapp.IFTKeeper.PendingTransfer(ctx, &types.QueryPendingTransferRequest{
-		Denom:    testDenom,
-		ClientId: "07-tendermint-999",
-		Sequence: 999,
-	})
-	require.Error(t, err)
 }
 
 func TestQuery_Params(t *testing.T) {

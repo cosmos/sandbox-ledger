@@ -38,7 +38,7 @@ func TestGenesis_Validate(t *testing.T) {
 					{
 						Denom: testDenom,
 						Bridge: types.IFTBridge{
-							ClientId:               "07-tendermint-0",
+							ClientId:               "attestations-0",
 							CounterpartyIftAddress: remoteIFTAddrA,
 							IftSendCallConstructor: types.ConstructorEVM,
 						},
@@ -55,7 +55,7 @@ func TestGenesis_Validate(t *testing.T) {
 				PendingTransfers: []types.PendingTransfer{
 					{
 						Denom:    testDenom,
-						ClientId: "07-tendermint-0",
+						ClientId: "attestations-0",
 						Sequence: 1,
 						Sender:   userAddrA,
 						Amount:   math.NewInt(1000),
@@ -71,7 +71,7 @@ func TestGenesis_Validate(t *testing.T) {
 					{
 						Denom: "",
 						Bridge: types.IFTBridge{
-							ClientId:               "07-tendermint-0",
+							ClientId:               "attestations-0",
 							CounterpartyIftAddress: remoteIFTAddrA,
 							IftSendCallConstructor: types.ConstructorEVM,
 						},
@@ -105,7 +105,7 @@ func TestGenesis_Validate(t *testing.T) {
 				PendingTransfers: []types.PendingTransfer{
 					{
 						Denom:    "",
-						ClientId: "07-tendermint-0",
+						ClientId: "attestations-0",
 						Sequence: 1,
 						Sender:   userAddrA,
 						Amount:   math.NewInt(1000),

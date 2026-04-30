@@ -830,9 +830,15 @@ func (app *SandboxApp) RegisterAPIRoutes(apiSvr *api.Server, apiConfig config.AP
 func (app *SandboxApp) RegisterTxService(clientCtx client.Context) {
 	authtx.RegisterTxService(app.GRPCQueryRouter(), clientCtx, app.Simulate, app.interfaceRegistry)
 }
+
+// RegisterTendermintService registers the CometBFT gRPC service
+// (cosmos.base.tendermint.v1beta1.Service) — exposes block, validator, and
+// node-info queries to clients. Required by the cosmos-sdk Application
+// interface; unrelated to the IBC 07-tendermint light client.
 func (app *SandboxApp) RegisterTendermintService(clientCtx client.Context) {
 	cmtservice.RegisterTendermintService(clientCtx, app.GRPCQueryRouter(), app.interfaceRegistry, app.Query)
 }
+
 func (app *SandboxApp) RegisterNodeService(clientCtx client.Context, cfg config.Config) {
 	node.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg, func() int64 {
 		return app.CommitMultiStore().EarliestVersion()

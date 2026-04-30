@@ -16,6 +16,7 @@ Fungible Token) bridge built on top of ICS-27 GMP for cross-chain mint/burn.
 | **IBC core + transfer (v1 + v2)** | Standard IBC + IBC v2 packet path |
 | **IBC callbacks (v1 + v2)** | Lets contracts/modules receive ack & timeout callbacks on transfer / GMP packets |
 | **27-gmp** | ICS-27 General Message Passing — IBC v2 cross-chain `MsgSendCall` |
+| **attestations** light client | Sole IBC light-client type — counterparties verify packets via signed attestations from a configured EOA quorum (no 07-tendermint) |
 | **tokenfactory** | Permissionless `factory/<creator>/<sub>` token creation; admin-gated mint/burn |
 | **ift** | Interchain Fungible Token bridge: pairs a tokenfactory denom with a counterparty contract over GMP, with EVM, Cosmos-tx, and Solana mint constructors |
 
@@ -31,6 +32,14 @@ Fungible Token) bridge built on top of ICS-27 GMP for cross-chain mint/burn.
 - **IBC v2 routing**:
   - `transfer` port → transfer-v2 → erc20-v2 middleware
   - `gmpport` (ICS-27) → gmp module → callbacks-v2 middleware → IFT keeper
+- **IBC light client**: only the `attestations` light client is registered
+  on the 02-client router — `07-tendermint` is **not** included. Every
+  counterparty connection terminates in an attestations client whose state
+  declares a set of EOA attestor addresses and a `min_required_sigs`
+  quorum. Packet proofs are EIP-191-style signatures over an ABI-encoded
+  attestation, verified at receive/timeout time. This is what lets
+  non-Cosmos chains (EVM, Solana) participate without running a Tendermint
+  light client.
 - **IFT bridge model**: a registered bridge associates a tokenfactory denom
   with `(client_id, counterparty_contract, constructor_type)`. Outgoing
   transfers burn locally and emit a GMP `MsgSendCall` carrying a constructor-
@@ -167,3 +176,12 @@ Three workflows under [.github/workflows/](.github/workflows/):
 Pre-release. Wire-format identifiers (proto package names, module store keys)
 are stable for development but should be reviewed before any external
 deployment.
+
+### Counterparty compatibility note
+
+Because this chain registers only the `attestations` light client, IBC
+counterparties must support it too — a stock Tendermint chain cannot open
+an IBC connection to this chain via `07-tendermint`. The expected
+counterparties are EVM and Solana chains that operate as attestors over a
+shared `MsgSendCall` payload. To peer with another Cosmos chain, that
+chain would need to wire in `attestations` from the same ibc-go release.

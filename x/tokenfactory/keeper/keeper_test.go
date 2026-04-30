@@ -24,7 +24,6 @@ import (
 	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
 
 	cmtabcitypes "github.com/cometbft/cometbft/abci/types"
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 )
 
 const (
@@ -45,7 +44,7 @@ func setupIntegrationApp(tb testing.TB) (*app.SandboxApp, sdk.Context) {
 	testutil.SafeSetAddressPrefixes()
 
 	db := dbm.NewMemDB()
-	wfapp := app.NewApp(log.NewNopLogger(), db, nil, false, simtestutil.NewAppOptionsWithFlagHome(tb.TempDir()), baseapp.SetChainID("wf-chain-id"))
+	wfapp := app.NewApp(log.NewNopLogger(), db, nil, false, simtestutil.NewAppOptionsWithFlagHome(tb.TempDir()), baseapp.SetChainID("chain-id"))
 	wfapp.SetInitChainer(func(ctx sdk.Context, _ *cmtabcitypes.RequestInitChain) (*cmtabcitypes.ResponseInitChain, error) {
 		for _, mod := range wfapp.ModuleManager.OrderInitGenesis {
 			if m, ok := wfapp.ModuleManager.Modules[mod].(module.HasGenesis); ok {
@@ -64,12 +63,14 @@ func setupIntegrationApp(tb testing.TB) (*app.SandboxApp, sdk.Context) {
 		panic(fmt.Errorf("failed to load application version from store: %w", err))
 	}
 
-	_, err := wfapp.InitChain(&cmtabcitypes.RequestInitChain{ChainId: "wf-chain-id", ConsensusParams: simtestutil.DefaultConsensusParams})
+	_, err := wfapp.InitChain(&cmtabcitypes.RequestInitChain{ChainId: "chain-id", ConsensusParams: simtestutil.DefaultConsensusParams})
 	require.NoError(tb, err)
 
 	// use deliver-state context backed by BaseApp finalizeBlockState
-	ctx := wfapp.NewContext(false)
-	ctx = ctx.WithBlockHeader(cmtproto.Header{ChainID: "wf-chain-id", Time: time.Now(), Height: 1})
+	ctx := wfapp.NewContext(false).
+		WithChainID("chain-id").
+		WithBlockTime(time.Now()).
+		WithBlockHeight(1)
 
 	// Ensure module params exist (not strictly necessary if queries don’t touch them)
 	require.NoError(tb, wfapp.TokenFactoryKeeper.SetParams(ctx, types.DefaultParams()))

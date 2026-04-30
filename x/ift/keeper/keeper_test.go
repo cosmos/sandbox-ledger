@@ -9,6 +9,7 @@ import (
 	"github.com/cosmos/sandbox-ledger/app"
 	"github.com/cosmos/sandbox-ledger/testutil"
 	ifttypes "github.com/cosmos/sandbox-ledger/x/ift/types"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections"
@@ -26,15 +27,10 @@ import (
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	cmtabcitypes "github.com/cometbft/cometbft/abci/types"
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	cmttypes "github.com/cometbft/cometbft/types"
 
-	clienttypes "github.com/cosmos/ibc-go/v11/modules/core/02-client/types"
 	clientv2types "github.com/cosmos/ibc-go/v11/modules/core/02-client/v2/types"
-	commitmenttypes "github.com/cosmos/ibc-go/v11/modules/core/23-commitment/types"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
-	ibctm "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
-	ibctesting "github.com/cosmos/ibc-go/v11/testing"
+	ibcattestations "github.com/cosmos/ibc-go/v11/modules/light-clients/attestations"
 )
 
 const (
@@ -64,7 +60,7 @@ func setupIntegrationApp(tb testing.TB) (*app.SandboxApp, sdk.Context) {
 	testutil.SafeSetAddressPrefixes()
 
 	db := dbm.NewMemDB()
-	wfapp := app.NewApp(log.NewNopLogger(), db, nil, false, simtestutil.NewAppOptionsWithFlagHome(tb.TempDir()), baseapp.SetChainID("wf-chain-id"))
+	wfapp := app.NewApp(log.NewNopLogger(), db, nil, false, simtestutil.NewAppOptionsWithFlagHome(tb.TempDir()), baseapp.SetChainID("chain-id"))
 	wfapp.SetInitChainer(func(ctx sdk.Context, _ *cmtabcitypes.RequestInitChain) (*cmtabcitypes.ResponseInitChain, error) {
 		for _, mod := range wfapp.ModuleManager.OrderInitGenesis {
 			if m, ok := wfapp.ModuleManager.Modules[mod].(module.HasGenesis); ok {
@@ -81,11 +77,13 @@ func setupIntegrationApp(tb testing.TB) (*app.SandboxApp, sdk.Context) {
 		panic(fmt.Errorf("failed to load application version from store: %w", err))
 	}
 
-	_, err := wfapp.InitChain(&cmtabcitypes.RequestInitChain{ChainId: "wf-chain-id", ConsensusParams: simtestutil.DefaultConsensusParams})
+	_, err := wfapp.InitChain(&cmtabcitypes.RequestInitChain{ChainId: "chain-id", ConsensusParams: simtestutil.DefaultConsensusParams})
 	require.NoError(tb, err)
 
-	ctx := wfapp.NewContext(false)
-	ctx = ctx.WithBlockHeader(cmtproto.Header{ChainID: "wf-chain-id", Time: time.Now(), Height: 1})
+	ctx := wfapp.NewContext(false).
+		WithChainID("chain-id").
+		WithBlockTime(time.Now()).
+		WithBlockHeight(1)
 
 	// Set IFT params with admin as authority
 	require.NoError(tb, wfapp.IFTKeeper.ParamsStore.Set(ctx, ifttypes.Params{
@@ -95,30 +93,32 @@ func setupIntegrationApp(tb testing.TB) (*app.SandboxApp, sdk.Context) {
 	return wfapp, ctx
 }
 
+// createIBCClient creates an attestations IBC client for use as a test
+// counterparty in IFT tests. IFT only needs a valid client ID; it doesn't
+// exercise the light-client verify paths, so a single-attestor client with
+// quorum 1 is enough to satisfy CreateClient + SetClientCounterparty.
 func createIBCClient(tb testing.TB, ctx sdk.Context, wfapp *app.SandboxApp) string {
 	tb.Helper()
 
-	trustingPeriod := time.Hour * 24 * 7 * 2
-	ubdPeriod := time.Hour * 24 * 7 * 3
-	maxClockDrift := time.Second * 10
-	testClientHeight := clienttypes.Height{
-		RevisionNumber: 0,
-		RevisionHeight: 1,
-	}
-	privVal := cmttypes.NewMockPV()
-	pubKey, err := privVal.GetPubKey()
+	// Generate a fresh EOA address to use as the attestor — the value isn't
+	// verified during client creation, but must be a valid hex address per
+	// attestations.ClientState.Validate().
+	privKey, err := ethcrypto.GenerateKey()
 	require.NoError(tb, err)
+	attestor := ethcrypto.PubkeyToAddress(privKey.PublicKey).Hex()
 
-	validator := cmttypes.NewValidator(pubKey, 1)
-	valSet := cmttypes.NewValidatorSet([]*cmttypes.Validator{validator})
-	valSetHash := valSet.Hash()
+	clientStateBz := wfapp.AppCodec().MustMarshal(ibcattestations.NewClientState(
+		[]string{attestor},
+		1, // min required signatures
+		1, // latest height
+	))
+	consensusStateBz := wfapp.AppCodec().MustMarshal(&ibcattestations.ConsensusState{
+		Timestamp: uint64(time.Now().UnixNano()),
+	})
 
-	tmClientState := ibctm.NewClientState("test-chain-id", ibctm.DefaultTrustLevel, trustingPeriod, ubdPeriod, maxClockDrift, testClientHeight, commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath)
-	tmConsensusState := ibctm.NewConsensusState(time.Now(), commitmenttypes.NewMerkleRoot(make([]byte, 32)), valSetHash)
-	clientState := wfapp.AppCodec().MustMarshal(tmClientState)
-	consensusState := wfapp.AppCodec().MustMarshal(tmConsensusState)
-
-	clientID, err := wfapp.IBCKeeper.ClientKeeper.CreateClient(ctx, ibcexported.Tendermint, clientState, consensusState)
+	clientID, err := wfapp.IBCKeeper.ClientKeeper.CreateClient(
+		ctx, ibcexported.Attestations, clientStateBz, consensusStateBz,
+	)
 	require.NoError(tb, err)
 
 	wfapp.IBCKeeper.ClientV2Keeper.SetClientCounterparty(ctx, clientID, clientv2types.CounterpartyInfo{ClientId: clientID})
