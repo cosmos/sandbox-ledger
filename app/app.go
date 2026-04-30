@@ -69,7 +69,7 @@ import (
 	ibcapi "github.com/cosmos/ibc-go/v11/modules/core/api"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
 	ibckeeper "github.com/cosmos/ibc-go/v11/modules/core/keeper"
-	ibctm "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcattestations "github.com/cosmos/ibc-go/v11/modules/light-clients/attestations"
 
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	"cosmossdk.io/client/v2/autocli"
@@ -509,8 +509,8 @@ func NewApp(
 
 	clientKeeper := app.IBCKeeper.ClientKeeper
 	storeProvider := app.IBCKeeper.ClientKeeper.GetStoreProvider()
-	tmLightClientModule := ibctm.NewLightClientModule(appCodec, storeProvider)
-	clientKeeper.AddRoute(ibctm.ModuleName, &tmLightClientModule)
+	attestationsLightClientModule := ibcattestations.NewLightClientModule(appCodec, storeProvider)
+	clientKeeper.AddRoute(ibcattestations.ModuleName, &attestationsLightClientModule)
 
 	transferModule := transfer.NewAppModule(app.TransferKeeper)
 
@@ -555,11 +555,14 @@ func NewApp(
 		gov.NewAppModule(appCodec, app.GovKeeper, app.AccountKeeper, app.BankKeeper, nil),
 		upgrade.NewAppModule(app.UpgradeKeeper, app.AccountKeeper.AddressCodec()),
 		poa.NewAppModule(appCodec, app.POAKeeper, poa.WithSecp256k1Support()),
-		// IBC
+		// IBC modules
 		ibc.NewAppModule(app.IBCKeeper),
-		ibctm.NewAppModule(tmLightClientModule),
 		transferModule,
 		gmp.NewAppModule(app.GMPKeeper),
+
+		// IBC light clients
+		ibcattestations.NewAppModule(attestationsLightClientModule),
+
 		// EVM
 		vm.NewAppModule(app.EVMKeeper, app.AccountKeeper, app.BankKeeper, app.AccountKeeper.AddressCodec()),
 		feemarket.NewAppModule(app.FeeMarketKeeper),
