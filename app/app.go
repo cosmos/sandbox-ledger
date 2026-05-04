@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 
-	"github.com/cosmos/ibc-go/prototypes/x/ift"
-	iftkeeper "github.com/cosmos/ibc-go/prototypes/x/ift/keeper"
-	ifttypes "github.com/cosmos/ibc-go/prototypes/x/ift/types"
-	"github.com/cosmos/ibc-go/prototypes/x/tokenfactory"
-	tokenfactorykeeper "github.com/cosmos/ibc-go/prototypes/x/tokenfactory/keeper"
-	tokenfactorytypes "github.com/cosmos/ibc-go/prototypes/x/tokenfactory/types"
+	"github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift"
+	iftkeeper "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift/keeper"
+	ifttypes "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift/types"
+	"github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory"
+	tokenfactorykeeper "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory/keeper"
+	tokenfactorytypes "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory/types"
 	"github.com/spf13/cast"
 
 	"github.com/cosmos/cosmos-sdk/baseapp/txnrunner"

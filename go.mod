@@ -17,7 +17,6 @@ require (
 	github.com/cosmos/evm v0.5.0-rc.0.0.20260410210749-bbc4ca9b8c64
 	github.com/cosmos/evm/evmd v0.0.0-20260410210749-bbc4ca9b8c64
 	github.com/cosmos/gogoproto v1.7.2
-	github.com/cosmos/ibc-go/prototypes v0.0.0-20260504093922-76be6b6c9fde
 	github.com/cosmos/ibc-go/v11 v11.0.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/spf13/cast v1.10.0
@@ -396,4 +395,5 @@ replace (
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tidwall/btree => github.com/cosmos/btree v0.0.0-20250924232609-2c6195d95951
+	github.com/cosmos/ibc-go/v11 => github.com/cosmos/ibc-go/v11 v11.0.0-20260504123951-eb8dcfb81c12
 )
