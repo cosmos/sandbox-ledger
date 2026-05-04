@@ -18,9 +18,14 @@ env:
   IMAGE_NAME: sandbox-ledger
   GIT_TAG: "${{ inputs.tag || github.ref_name }}"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-push:
     runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 25
     permissions:
       packages: write
       contents: read
