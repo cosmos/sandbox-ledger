@@ -15,7 +15,6 @@ require (
 	github.com/cosmos/cosmos-sdk/enterprise/poa v0.0.0-20260410193155-cbbc1d4f86b1
 	github.com/cosmos/cosmos-sdk/store/v2 v2.0.0
 	github.com/cosmos/evm v0.5.0-rc.0.0.20260410210749-bbc4ca9b8c64
-	github.com/cosmos/evm/evmd v0.0.0-20260410210749-bbc4ca9b8c64
 	github.com/cosmos/gogoproto v1.7.2
 	github.com/cosmos/ibc-go/v11 v11.0.0
 	github.com/ethereum/go-ethereum v1.17.2
@@ -98,6 +97,7 @@ require (
 	github.com/cosmos/btcutil v1.0.5 // indirect
 	github.com/cosmos/btree v1.0.0 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
+	github.com/cosmos/evm/evmd v0.0.0-20260410210749-bbc4ca9b8c64
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/gogogateway v1.2.0 // indirect
 	github.com/cosmos/iavl v1.2.8 // indirect
@@ -391,7 +391,7 @@ replace (
 	// Pin to enterprise branch commit that implements InsertTx/ReapTxs for cometbft v0.39.1 compatibility
 	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.54.1-0.20260410193155-cbbc1d4f86b1
 	github.com/cosmos/cosmos-sdk/x/group => github.com/cosmos/cosmos-sdk/enterprise/group v0.0.0-20260227212600-39d4711b8970
-	github.com/cosmos/ibc-go/v11 => github.com/cosmos/ibc-go/v11 v11.0.0-20260505082251-eeb1c2cc0e98
+	github.com/cosmos/ibc-go/v11 => github.com/cosmos/ibc-go/v11 v11.0.0-20260505124328-4f910c40e3fe
 	github.com/ethereum/go-ethereum => github.com/cosmos/go-ethereum v1.16.2-cosmos-1.0.20260126204437-32ededcf907f
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
