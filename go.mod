@@ -391,9 +391,9 @@ replace (
 	// Pin to enterprise branch commit that implements InsertTx/ReapTxs for cometbft v0.39.1 compatibility
 	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.54.1-0.20260410193155-cbbc1d4f86b1
 	github.com/cosmos/cosmos-sdk/x/group => github.com/cosmos/cosmos-sdk/enterprise/group v0.0.0-20260227212600-39d4711b8970
+	github.com/cosmos/ibc-go/v11 => github.com/cosmos/ibc-go/v11 v11.0.0-20260505082251-eeb1c2cc0e98
 	github.com/ethereum/go-ethereum => github.com/cosmos/go-ethereum v1.16.2-cosmos-1.0.20260126204437-32ededcf907f
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.9.1
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tidwall/btree => github.com/cosmos/btree v0.0.0-20250924232609-2c6195d95951
-	github.com/cosmos/ibc-go/v11 => github.com/cosmos/ibc-go/v11 v11.0.0-20260504123951-eb8dcfb81c12
 )
