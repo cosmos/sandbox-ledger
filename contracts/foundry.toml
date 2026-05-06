@@ -28,5 +28,15 @@ libraries = [
     "lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib:0x0000000000000000000000000000000000005a47",
 ]
 
+[fmt]
+# Auto-generated and vendored sources we don't own:
+#   - Verifier_*.sol are snarkjs output (regen via sandbox-backend's
+#     scripts/regen-verifiers.sh — formatter style is whatever snarkjs emits)
+#   - SmtLib.sol is a vendored iden3 shim
+ignore = [
+    "src/verifiers/*.sol",
+    "src/iden3-shims/SmtLib.sol",
+]
+
 [rpc_endpoints]
 sandbox = "http://127.0.0.1:8545"

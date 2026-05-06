@@ -6,6 +6,7 @@ require (
 	cosmossdk.io/api v1.0.0
 	cosmossdk.io/client/v2 v2.11.0-rc.0
 	cosmossdk.io/core v1.1.0
+	cosmossdk.io/errors v1.1.0
 	cosmossdk.io/log/v2 v2.1.0
 	cosmossdk.io/tools/confix v0.1.2
 	github.com/cometbft/cometbft v0.39.1
@@ -34,7 +35,6 @@ require (
 	cloud.google.com/go/storage v1.60.0 // indirect
 	cosmossdk.io/collections v1.4.0 // indirect
 	cosmossdk.io/depinject v1.2.1 // indirect
-	cosmossdk.io/errors v1.1.0 // indirect
 	cosmossdk.io/math v1.5.3 // indirect
 	cosmossdk.io/schema v1.1.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect

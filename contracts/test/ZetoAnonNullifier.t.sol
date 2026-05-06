@@ -44,9 +44,7 @@ contract ZetoAnonNullifierTest is Test {
         // 2. Etch SmtLib at its fixed address. Forge's compile already
         //    linked SmtLib's bytecode to Poseidon@0x5002/0x5003 because
         //    of the libraries entry in foundry.toml.
-        bytes memory smtCode = vm.getDeployedCode(
-            "lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib"
-        );
+        bytes memory smtCode = vm.getDeployedCode("lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib");
         vm.etch(SMTLIB, smtCode);
 
         // 3. Set up the verifier slots required by the variant.

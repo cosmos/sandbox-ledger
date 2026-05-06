@@ -9,8 +9,8 @@ build:
 install:
 	go install ./cmd/sandboxd
 
-tidy:
-	go mod tidy
+tidy: ## Tidy every Go module in the repo
+	./scripts/go-mod-tidy-all.sh
 
 lint:
 	golangci-lint run ./...

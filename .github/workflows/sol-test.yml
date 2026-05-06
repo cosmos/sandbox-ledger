@@ -15,13 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
-      # No tests yet — passes vacuously. Once tests land, this asserts they pass.
+      - name: Install Forge libraries
+        working-directory: contracts
+        run: scripts/install-libs.sh
+
       - working-directory: contracts
         run: forge test --no-match-path "lib/**"
