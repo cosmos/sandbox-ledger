@@ -170,7 +170,7 @@ jq --arg denom "$DENOM" --arg display_denom "$DISPLAY_DENOM" --arg symbol "$SYMB
   }]' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
 # --- Block params ---
-jq '.consensus.params.block.max_gas="10000000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+jq '.consensus.params.block.max_gas="200000000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
 if [ "${LOAD_TESTING:-}" = "true" ]; then
   echo "--- Applying load testing optimizations..."
@@ -247,4 +247,70 @@ else
   echo "tail -f $LOG_PATH" | pbcopy 2>/dev/null || true
   echo
   echo "CLI:   $NODE_BIN --home $CHAIN_DIR status"
+
+  # ---------------------------------------------------------------------------
+  # Bootstrap Zeto (skip with SKIP_ZETO_BOOTSTRAP=1)
+  #
+  # Waits briefly for the EVM JSON-RPC port, then:
+  #   1) deploy-zeto.sh        — Zeto_Anon impl + verifiers + factory
+  #   2) sandbox-bootstrap deploy-token  — clones one CBDC token from the factory
+  #   3) sandbox-bootstrap mint-genesis  — seeds 1000 CBDC to user-1..user-10
+  #
+  # The CLI binary lives in ../sandbox-backend/build; build it first via
+  # `cd ../sandbox-backend && make build`. If missing, this section logs and
+  # exits 0 so the chain stays up.
+  # ---------------------------------------------------------------------------
+  if [ "${SKIP_ZETO_BOOTSTRAP:-0}" != "1" ]; then
+    EVM_PORT=8545
+    echo "--- Waiting for EVM JSON-RPC on :$EVM_PORT..."
+    for _ in {1..40}; do
+      if nc -z 127.0.0.1 "$EVM_PORT" 2>/dev/null; then break; fi
+      sleep 1
+    done
+
+    BOOTSTRAP_BIN="$CWD/../../sandbox-backend/build/sandbox-bootstrap"
+    DEPLOY_SCRIPT="$CWD/../contracts/deploy-zeto.sh"
+    MANIFEST="$CWD/../contracts/deployments/sandbox-dev-1.json"
+
+    echo "--- Deploying Zeto contracts..."
+    bash "$DEPLOY_SCRIPT"
+
+    if [ ! -x "$BOOTSTRAP_BIN" ]; then
+      echo "--- WARN: $BOOTSTRAP_BIN not found; skipping token deploy + genesis mint."
+      echo "    Build it via: (cd ../sandbox-backend && make build) and re-run this script."
+    else
+      # Validator key derived from VAL0_MNEMONIC (Anvil-style derivation by sandboxd).
+      # We use the same mnemonic here to recover the EVM private key for the
+      # initialOwner / token treasurer.
+      VAL_PRIV=$(cast wallet derive-private-key "$VAL0_MNEMONIC" 2>/dev/null)
+      echo "--- Deploying CBDC token via factory..."
+      "$BOOTSTRAP_BIN" deploy-token \
+        --rpc "http://127.0.0.1:$EVM_PORT" \
+        --manifest "$MANIFEST" \
+        --owner-key "$VAL_PRIV" \
+        --name CBDC --symbol USDCBDC --impl Zeto_AnonNullifier
+
+      KEYS_FLAG=""
+      TO_FLAG=""
+      for wallet_entry in "${WALLETS[@]}"; do
+        wallet_name="${wallet_entry%%:*}"
+        wallet_mnemonic="${wallet_entry#*:}"
+        wallet_priv=$(cast wallet derive-private-key "$wallet_mnemonic" 2>/dev/null)
+        KEYS_FLAG+="${wallet_name}=${wallet_priv},"
+        TO_FLAG+="${wallet_name}:1000,"
+      done
+      KEYS_FLAG="${KEYS_FLAG%,}"
+      TO_FLAG="${TO_FLAG%,}"
+
+      echo "--- Minting genesis balances (1000 CBDC to each user)..."
+      "$BOOTSTRAP_BIN" mint-genesis \
+        --rpc "http://127.0.0.1:$EVM_PORT" \
+        --manifest "$MANIFEST" \
+        --owner-key "$VAL_PRIV" \
+        --to "$TO_FLAG" \
+        --keys "$KEYS_FLAG"
+
+      echo "--- Bootstrap complete. Manifest: $MANIFEST"
+    fi
+  fi
 fi

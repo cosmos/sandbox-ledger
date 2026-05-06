@@ -18,8 +18,9 @@ import {Groth16Verifier_AnonEncNullifierBatch} from "zeto/verifiers/verifier_ano
 // import {Groth16Verifier_AnonEncNullifierNonRepudiationBatch} from "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation_batch.sol";
 import {Groth16Verifier_AnonNullifierTransfer} from "zeto/verifiers/verifier_anon_nullifier_transfer.sol";
 import {Groth16Verifier_AnonNullifierTransferBatch} from "zeto/verifiers/verifier_anon_nullifier_transfer_batch.sol";
-import {Groth16Verifier_AnonNullifierTransferLocked} from "zeto/verifiers/verifier_anon_nullifier_transferLocked.sol";
-import {Groth16Verifier_AnonNullifierTransferLockedBatch} from "zeto/verifiers/verifier_anon_nullifier_transferLocked_batch.sol";
+// SKIPPED: verifier_anon_nullifier_transferLocked.sol not present in this Zeto version.
+// Locked-transfer variants are not deployed by this PoC; the corresponding verifier
+// slots are wired as address(0) below.
 import {Groth16Verifier_AnonNullifierKycTransfer} from "zeto/verifiers/verifier_anon_nullifier_kyc_transfer.sol";
 import {Groth16Verifier_AnonNullifierKycTransferBatch} from "zeto/verifiers/verifier_anon_nullifier_kyc_transfer_batch.sol";
 import {Groth16Verifier_AnonNullifierKycTransferLocked} from "zeto/verifiers/verifier_anon_nullifier_kyc_transferLocked.sol";
@@ -38,7 +39,7 @@ import {Groth16Verifier_BurnNullifier} from "zeto/verifiers/verifier_burn_nullif
 import {Groth16Verifier_BurnNullifierBatch} from "zeto/verifiers/verifier_burn_nullifier_batch.sol";
 import {Groth16Verifier_NfAnon} from "zeto/verifiers/verifier_nf_anon.sol";
 import {Groth16Verifier_NfAnonNullifierTransfer} from "zeto/verifiers/verifier_nf_anon_nullifier_transfer.sol";
-import {Groth16Verifier_NfAnonNullifierTransferLocked} from "zeto/verifiers/verifier_nf_anon_nullifier_transferLocked.sol";
+// SKIPPED: verifier_nf_anon_nullifier_transferLocked.sol not present in this Zeto version.
 
 // --- Token implementations (12) ---
 import {Zeto_Anon} from "zeto/zeto_anon.sol";
@@ -57,8 +58,8 @@ import {Zeto_NfAnonNullifier} from "zeto/zeto_nf_anon_nullifier.sol";
 
 // --- Factory ---
 import {ZetoTokenFactory} from "zeto/factory.sol";
-import {IZetoInitializable} from "zeto/lib/interfaces/izeto_initializable.sol";
-import {IGroth16Verifier} from "zeto/lib/interfaces/izeto_verifier.sol";
+import {IZetoInitializable} from "zeto/lib/interfaces/IZetoInitializable.sol";
+import {IGroth16Verifier} from "zeto/lib/interfaces/IZetoVerifier.sol";
 
 contract DeployZeto is Script {
     IGroth16Verifier constant ZERO = IGroth16Verifier(address(0));
@@ -89,8 +90,10 @@ contract DeployZeto is Script {
         // AnonNullifier
         address anonNullV = address(new Groth16Verifier_AnonNullifierTransfer());
         address anonNullBatchV = address(new Groth16Verifier_AnonNullifierTransferBatch());
-        address anonNullLockedV = address(new Groth16Verifier_AnonNullifierTransferLocked());
-        address anonNullLockedBatchV = address(new Groth16Verifier_AnonNullifierTransferLockedBatch());
+        // Locked-transfer verifiers absent in this Zeto version; locked variants
+        // are not used by the PoC.
+        address anonNullLockedV = address(0);
+        address anonNullLockedBatchV = address(0);
 
         // AnonEncNullifier
         address anonEncNullV = address(new Groth16Verifier_AnonEncNullifier());
@@ -119,7 +122,7 @@ contract DeployZeto is Script {
         // NF
         address nfAnonV = address(new Groth16Verifier_NfAnon());
         address nfAnonNullV = address(new Groth16Verifier_NfAnonNullifierTransfer());
-        address nfAnonNullLockedV = address(new Groth16Verifier_NfAnonNullifierTransferLocked());
+        address nfAnonNullLockedV = address(0); // verifier absent in this Zeto version.
 
         // =====================================================================
         // 2. Deploy token implementation contracts (bare, not initialized)
