@@ -8,9 +8,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
 	goruntime "runtime"
 
+	"github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift"
+	iftkeeper "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift/keeper"
+	ifttypes "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/ift/types"
+	"github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory"
+	tokenfactorykeeper "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory/keeper"
+	tokenfactorytypes "github.com/cosmos/ibc-go/v11/modules/apps/prototypes/tokenfactory/types"
 	"github.com/spf13/cast"
 
 	"github.com/cosmos/cosmos-sdk/baseapp/txnrunner"
@@ -50,7 +55,11 @@ import (
 	evmtypes "github.com/cosmos/evm/x/vm/types"
 	"github.com/cosmos/gogoproto/proto"
 
+	gmp "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp"
+	gmpkeeper "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/keeper"
+	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
 	ibccallbacks "github.com/cosmos/ibc-go/v11/modules/apps/callbacks"
+	ibccallbacksv2 "github.com/cosmos/ibc-go/v11/modules/apps/callbacks/v2"
 	transfer "github.com/cosmos/ibc-go/v11/modules/apps/transfer"
 	transferkeeper "github.com/cosmos/ibc-go/v11/modules/apps/transfer/keeper"
 	ibctransfertypes "github.com/cosmos/ibc-go/v11/modules/apps/transfer/types"
@@ -60,7 +69,7 @@ import (
 	ibcapi "github.com/cosmos/ibc-go/v11/modules/core/api"
 	ibcexported "github.com/cosmos/ibc-go/v11/modules/core/exported"
 	ibckeeper "github.com/cosmos/ibc-go/v11/modules/core/keeper"
-	ibctm "github.com/cosmos/ibc-go/v11/modules/light-clients/07-tendermint"
+	ibcattestations "github.com/cosmos/ibc-go/v11/modules/light-clients/attestations"
 
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	"cosmossdk.io/client/v2/autocli"
@@ -135,14 +144,21 @@ const appName = "sandboxd"
 
 // maccPerms are the module account permissions for this chain.
 var maccPerms = map[string][]string{
-	authtypes.FeeCollectorName:  nil,
-	govtypes.ModuleName:         {authtypes.Burner},
-	poatypes.ModuleName:         nil,
-	ibctransfertypes.ModuleName: {authtypes.Minter, authtypes.Burner},
-	evmtypes.ModuleName:         {authtypes.Minter, authtypes.Burner},
-	feemarkettypes.ModuleName:   nil,
-	erc20types.ModuleName:       {authtypes.Minter, authtypes.Burner},
+	authtypes.FeeCollectorName:   nil,
+	govtypes.ModuleName:          {authtypes.Burner},
+	poatypes.ModuleName:          nil,
+	ibctransfertypes.ModuleName:  {authtypes.Minter, authtypes.Burner},
+	evmtypes.ModuleName:          {authtypes.Minter, authtypes.Burner},
+	feemarkettypes.ModuleName:    nil,
+	erc20types.ModuleName:        {authtypes.Minter, authtypes.Burner},
+	tokenfactorytypes.ModuleName: {authtypes.Minter, authtypes.Burner},
+	gmptypes.ModuleName:          nil,
+	ifttypes.ModuleName:          nil,
 }
+
+// maxCallbackGas is the maximum gas limit for IBC callback execution
+// (ack/timeout handlers wired through ibc-go callbacks v2 middleware).
+const maxCallbackGas = uint64(1_000_000)
 
 // ----------------------------------------------------------------------------
 // poaStakingKeeper satisfies the EVM and ERC-20 StakingKeeper interfaces
@@ -220,6 +236,10 @@ type SandboxApp struct {
 	IBCKeeper      *ibckeeper.Keeper
 	TransferKeeper *transferkeeper.Keeper
 	CallbackKeeper ibccallbackskeeper.ContractKeeper
+	GMPKeeper      *gmpkeeper.Keeper
+
+	TokenFactoryKeeper tokenfactorykeeper.Keeper
+	IFTKeeper          iftkeeper.Keeper
 
 	// Cosmos EVM keepers
 	FeeMarketKeeper feemarketkeeper.Keeper
@@ -260,9 +280,11 @@ func NewApp(
 		consensusparamtypes.StoreKey, govtypes.StoreKey,
 		upgradetypes.StoreKey, poatypes.StoreKey,
 		// IBC
-		ibcexported.StoreKey, ibctransfertypes.StoreKey,
+		ibcexported.StoreKey, ibctransfertypes.StoreKey, gmptypes.StoreKey,
 		// EVM
 		evmtypes.StoreKey, feemarkettypes.StoreKey, erc20types.StoreKey,
+		// App modules
+		tokenfactorytypes.StoreKey, ifttypes.StoreKey,
 	)
 	oKeys := storetypes.NewObjectStoreKeys(banktypes.ObjectStoreKey, evmtypes.ObjectKey)
 	transientKeys := storetypes.NewTransientStoreKeys(poatypes.TransientStoreKey)
@@ -453,10 +475,9 @@ func NewApp(
 		app.TransferKeeper,
 	)
 
-	// ---- IBC transfer stack ----
+	// ---- IBC transfer stack (v1) ----
 	var transferStack porttypes.IBCModule
 	transferStack = transfer.NewIBCModule(app.TransferKeeper)
-	maxCallbackGas := uint64(1_000_000)
 	transferStack = erc20.NewIBCMiddleware(app.Erc20Keeper, transferStack)
 	app.CallbackKeeper = ibccallbackskeeper.NewKeeper(app.AccountKeeper, app.EVMKeeper, app.Erc20Keeper)
 	callbacksMiddleware := ibccallbacks.NewIBCMiddleware(app.CallbackKeeper, maxCallbackGas)
@@ -464,9 +485,19 @@ func NewApp(
 	callbacksMiddleware.SetUnderlyingApplication(transferStack)
 	transferStack = callbacksMiddleware
 
+	// ---- IBC transfer stack (v2) ----
 	var transferStackV2 ibcapi.IBCModule
 	transferStackV2 = transferv2.NewIBCModule(app.TransferKeeper)
 	transferStackV2 = erc20v2.NewIBCMiddleware(transferStackV2, app.Erc20Keeper)
+
+	// GMP keeper (must be created before IFT keeper consumes it).
+	app.GMPKeeper = gmpkeeper.NewKeeper(
+		appCodec,
+		runtime.NewKVStoreService(keys[gmptypes.StoreKey]),
+		app.AccountKeeper,
+		app.MsgServiceRouter(),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
 
 	ibcRouter := porttypes.NewRouter()
 	ibcRouter.AddRoute(ibctransfertypes.ModuleName, transferStack)
@@ -478,10 +509,42 @@ func NewApp(
 
 	clientKeeper := app.IBCKeeper.ClientKeeper
 	storeProvider := app.IBCKeeper.ClientKeeper.GetStoreProvider()
-	tmLightClientModule := ibctm.NewLightClientModule(appCodec, storeProvider)
-	clientKeeper.AddRoute(ibctm.ModuleName, &tmLightClientModule)
+	attestationsLightClientModule := ibcattestations.NewLightClientModule(appCodec, storeProvider)
+	clientKeeper.AddRoute(ibcattestations.ModuleName, &attestationsLightClientModule)
 
 	transferModule := transfer.NewAppModule(app.TransferKeeper)
+
+	// Token Factory Keeper
+	app.TokenFactoryKeeper = tokenfactorykeeper.NewKeeper(
+		appCodec,
+		runtime.NewKVStoreService(keys[tokenfactorytypes.StoreKey]),
+		app.AccountKeeper,
+		app.BankKeeper,
+	)
+
+	// IFT Keeper — receives callbacks via the callbacks-v2 middleware on the GMP route.
+	app.IFTKeeper = iftkeeper.NewKeeper(
+		appCodec,
+		runtime.NewKVStoreService(keys[ifttypes.StoreKey]),
+		app.AccountKeeper.AddressCodec(),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		app.AccountKeeper,
+		&app.TokenFactoryKeeper,
+		app.GMPKeeper,
+		app.MsgServiceRouter(),
+		app.IBCKeeper.ClientKeeper,
+		app.IBCKeeper.ClientV2Keeper,
+	)
+
+	// Wrap the GMP IBC v2 module with callbacks-v2 middleware so IFT receives ack/timeout callbacks.
+	cbGMPModule := ibccallbacksv2.NewIBCMiddleware(
+		gmp.NewIBCModule(app.GMPKeeper),
+		app.IBCKeeper.ChannelKeeperV2,
+		&app.IFTKeeper,
+		app.IBCKeeper.ChannelKeeperV2,
+		maxCallbackGas,
+	)
+	ibcRouterV2.AddRoute(gmptypes.PortID, cbGMPModule)
 
 	// ---- Module Manager ----
 	app.ModuleManager = module.NewManager(
@@ -492,14 +555,24 @@ func NewApp(
 		gov.NewAppModule(appCodec, app.GovKeeper, app.AccountKeeper, app.BankKeeper, nil),
 		upgrade.NewAppModule(app.UpgradeKeeper, app.AccountKeeper.AddressCodec()),
 		poa.NewAppModule(appCodec, app.POAKeeper, poa.WithSecp256k1Support()),
-		// IBC
+		// IBC modules
 		ibc.NewAppModule(app.IBCKeeper),
-		ibctm.NewAppModule(tmLightClientModule),
 		transferModule,
+		gmp.NewAppModule(app.GMPKeeper),
+
+		// IBC light clients
+		ibcattestations.NewAppModule(attestationsLightClientModule),
+
 		// EVM
 		vm.NewAppModule(app.EVMKeeper, app.AccountKeeper, app.BankKeeper, app.AccountKeeper.AddressCodec()),
 		feemarket.NewAppModule(app.FeeMarketKeeper),
 		erc20.NewAppModule(app.Erc20Keeper, app.AccountKeeper),
+
+		// Token Factory Module
+		tokenfactory.NewAppModule(appCodec, app.TokenFactoryKeeper, app.AccountKeeper, app.BankKeeper),
+
+		// IFT Module
+		ift.NewAppModule(appCodec, app.IFTKeeper),
 	)
 
 	app.BasicModuleManager = module.NewBasicManagerFromManager(
@@ -508,6 +581,9 @@ func NewApp(
 			genutiltypes.ModuleName:     genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
 			govtypes.ModuleName:         gov.NewAppModuleBasic(nil),
 			ibctransfertypes.ModuleName: transfer.AppModuleBasic{},
+			// Override bank to inject EVM denom metadata into the default
+			// genesis so `sandboxd init` produces a self-consistent genesis.
+			banktypes.ModuleName: NewBankBasicWithEVMDenomMetadata(),
 		},
 	)
 	app.BasicModuleManager.RegisterLegacyAminoCodec(legacyAmino)
@@ -527,6 +603,9 @@ func NewApp(
 		evmtypes.ModuleName,
 		banktypes.ModuleName, govtypes.ModuleName,
 		consensusparamtypes.ModuleName,
+		gmptypes.ModuleName,
+		tokenfactorytypes.ModuleName,
+		ifttypes.ModuleName,
 	)
 	app.ModuleManager.SetOrderEndBlockers(
 		genutiltypes.ModuleName,
@@ -537,6 +616,9 @@ func NewApp(
 		evmtypes.ModuleName, erc20types.ModuleName, feemarkettypes.ModuleName,
 		ibcexported.ModuleName, ibctransfertypes.ModuleName,
 		upgradetypes.ModuleName, consensusparamtypes.ModuleName,
+		gmptypes.ModuleName,
+		tokenfactorytypes.ModuleName,
+		ifttypes.ModuleName,
 	)
 
 	genesisModuleOrder := []string{
@@ -547,6 +629,9 @@ func NewApp(
 		ibctransfertypes.ModuleName,
 		genutiltypes.ModuleName, upgradetypes.ModuleName,
 		consensusparamtypes.ModuleName,
+		tokenfactorytypes.ModuleName,
+		gmptypes.ModuleName,
+		ifttypes.ModuleName,
 	}
 	app.ModuleManager.SetOrderInitGenesis(genesisModuleOrder...)
 	app.ModuleManager.SetOrderExportGenesis(genesisModuleOrder...)
@@ -633,8 +718,18 @@ func (app *SandboxApp) GetAnteHandler() sdk.AnteHandler        { return app.Ante
 
 func (app *SandboxApp) DefaultGenesis() map[string]json.RawMessage {
 	genesis := app.BasicModuleManager.DefaultGenesis(app.appCodec)
+
 	evmGenState := NewEVMGenesisState()
 	genesis[evmtypes.ModuleName] = app.appCodec.MustMarshalJSON(evmGenState)
+
+	// EVM InitGenesis requires bank denom metadata for params.EvmDenom.
+	// Inject an entry so a vanilla `sandboxd init && start` boots without
+	// requiring callers to patch genesis.
+	var bankGen banktypes.GenesisState
+	app.appCodec.MustUnmarshalJSON(genesis[banktypes.ModuleName], &bankGen)
+	bankGen.DenomMetadata = append(bankGen.DenomMetadata, EVMBankDenomMetadata(evmGenState.Params.EvmDenom))
+	genesis[banktypes.ModuleName] = app.appCodec.MustMarshalJSON(&bankGen)
+
 	return genesis
 }
 
@@ -738,6 +833,7 @@ func (app *SandboxApp) RegisterTxService(clientCtx client.Context) {
 func (app *SandboxApp) RegisterTendermintService(clientCtx client.Context) {
 	cmtservice.RegisterTendermintService(clientCtx, app.GRPCQueryRouter(), app.interfaceRegistry, app.Query)
 }
+
 func (app *SandboxApp) RegisterNodeService(clientCtx client.Context, cfg config.Config) {
 	node.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg, func() int64 {
 		return app.CommitMultiStore().EarliestVersion()
