@@ -1,0 +1,27 @@
+name: Solidity Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: forge test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      # No tests yet — passes vacuously. Once tests land, this asserts they pass.
+      - working-directory: contracts
+        run: forge test --no-match-path "lib/**"
