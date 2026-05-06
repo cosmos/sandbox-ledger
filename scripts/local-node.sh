@@ -254,7 +254,12 @@ else
   # Waits briefly for the EVM JSON-RPC port, then:
   #   1) deploy-zeto.sh        — Zeto_Anon impl + verifiers + factory
   #   2) sandbox-bootstrap deploy-token  — clones one CBDC token from the factory
-  #   3) sandbox-bootstrap mint-genesis  — seeds 1000 CBDC to user-1..user-10
+  #
+  # No genesis pre-mint: every user's initial allocation flows through the
+  # UI's Phase 4 "Create user" wizard, which calls Mint with the treasury
+  # signer. That keeps the admin dashboard's tx feed faithful to what the
+  # operator actually did. To re-seed for scripted demos, run
+  # `sandbox-bootstrap mint-genesis ...` manually after bring-up.
   #
   # The CLI binary lives in ../sandbox-backend/build; build it first via
   # `cd ../sandbox-backend && make build`. If missing, this section logs and
@@ -290,27 +295,8 @@ else
         --owner-key "$VAL_PRIV" \
         --name CBDC --symbol USDCBDC --impl Zeto_AnonNullifier
 
-      KEYS_FLAG=""
-      TO_FLAG=""
-      for wallet_entry in "${WALLETS[@]}"; do
-        wallet_name="${wallet_entry%%:*}"
-        wallet_mnemonic="${wallet_entry#*:}"
-        wallet_priv=$(cast wallet derive-private-key "$wallet_mnemonic" 2>/dev/null)
-        KEYS_FLAG+="${wallet_name}=${wallet_priv},"
-        TO_FLAG+="${wallet_name}:1000,"
-      done
-      KEYS_FLAG="${KEYS_FLAG%,}"
-      TO_FLAG="${TO_FLAG%,}"
-
-      echo "--- Minting genesis balances (1000 CBDC to each user)..."
-      "$BOOTSTRAP_BIN" mint-genesis \
-        --rpc "http://127.0.0.1:$EVM_PORT" \
-        --manifest "$MANIFEST" \
-        --owner-key "$VAL_PRIV" \
-        --to "$TO_FLAG" \
-        --keys "$KEYS_FLAG"
-
       echo "--- Bootstrap complete. Manifest: $MANIFEST"
+      echo "    No genesis allocations — use the UI's Create User wizard to mint to participants."
     fi
   fi
 fi
