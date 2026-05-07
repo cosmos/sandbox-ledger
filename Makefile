@@ -12,6 +12,9 @@ install:
 tidy: ## Tidy every Go module in the repo
 	./scripts/go-mod-tidy-all.sh
 
+test:
+	go test ./...
+
 lint:
 	golangci-lint run ./...
 
@@ -22,7 +25,6 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 ## Local network targets
-
 .PHONY: localnet-init localnet-start localnet-stop localnet
 
 localnet-init: build ## Initialize a local single-node chain (config only, does not start)

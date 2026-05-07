@@ -10,3 +10,5 @@ contracts/lib/
 contracts/node_modules/
 contracts/package.json
 contracts/package-lock.json
+
+.DS_Store
