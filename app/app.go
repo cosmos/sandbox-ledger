@@ -16,6 +16,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/baseapp/txnrunner"
 	"github.com/ethereum/go-ethereum/common"
 
+	// Register go-ethereum's tracer implementations (JS + native) at init.
+	// They self-register with the tracer registry on import.
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 

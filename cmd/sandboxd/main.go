@@ -26,7 +26,9 @@ func main() {
 
 	rootCmd := app.NewRootCmd(defaultNodeHome)
 	if err := svrcmd.Execute(rootCmd, "sandboxd", defaultNodeHome); err != nil {
-		fmt.Fprintln(rootCmd.OutOrStderr(), err)
+		// We're already exiting non-zero; failing to write the error to
+		// stderr is best-effort.
+		_, _ = fmt.Fprintln(rootCmd.OutOrStderr(), err)
 		os.Exit(1)
 	}
 }
