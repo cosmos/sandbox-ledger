@@ -56,9 +56,12 @@ func seedBlockStoreHeight(t *testing.T, cfg *cmtcfg.Config, base, height int64) 
 	t.Helper()
 	db, err := cmtcfg.DefaultDBProvider(&cmtcfg.DBContext{ID: "blockstore", Config: cfg})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-	cmtstore.SaveBlockStoreState(&cmtstoreproto.BlockStoreState{Base: base, Height: height}, db)
-	require.NoError(t, db.Close())
+	defer func() { require.NoError(t, db.Close()) }()
+
+	batch := db.NewBatch()
+	defer func() { require.NoError(t, batch.Close()) }()
+	cmtstore.SaveBlockStoreStateBatch(&cmtstoreproto.BlockStoreState{Base: base, Height: height}, batch)
+	require.NoError(t, batch.WriteSync())
 }
 
 // saveTestBlock writes a minimal block at the given height through the real
@@ -68,7 +71,7 @@ func saveTestBlock(t *testing.T, cfg *cmtcfg.Config, height int64) {
 	t.Helper()
 	db, err := cmtcfg.DefaultDBProvider(&cmtcfg.DBContext{ID: "blockstore", Config: cfg})
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	bs := cmtstore.NewBlockStore(db)
 

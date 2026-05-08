@@ -1032,7 +1032,7 @@ holds an exclusive lock on the database.
 With --full, additionally prints the full block at the latest height in the
 selected --output format (text|json).`,
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) (err error) {
 			serverCtx := sdkserver.GetServerContextFromCmd(cmd)
 			cfg := serverCtx.Config
 
@@ -1040,7 +1040,11 @@ selected --output format (text|json).`,
 			if err != nil {
 				return fmt.Errorf("failed to open blockstore.db at %s: %w", cfg.DBDir(), err)
 			}
-			defer blockStoreDB.Close()
+			defer func() {
+				if cerr := blockStoreDB.Close(); cerr != nil && err == nil {
+					err = cerr
+				}
+			}()
 
 			bs := cmtstore.NewBlockStore(blockStoreDB)
 			height := bs.Height()
