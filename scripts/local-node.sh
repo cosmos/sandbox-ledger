@@ -262,13 +262,9 @@ else
   # leaking private app code.
   # ---------------------------------------------------------------------------
   if [ "${SKIP_ZETO_BOOTSTRAP:-0}" != "1" ]; then
-    EVM_PORT=8545
-    echo "--- Waiting for EVM JSON-RPC on :$EVM_PORT..."
-    for _ in {1..40}; do
-      if nc -z 127.0.0.1 "$EVM_PORT" 2>/dev/null; then break; fi
-      sleep 1
-    done
-
+    # deploy-zeto.sh has its own wait_for_rpc that polls cast block-number
+    # until the chain has produced a block — strictly stronger than a TCP
+    # port check, so we hand off directly.
     DEPLOY_SCRIPT="$CWD/../contracts/deploy-zeto.sh"
     echo "--- Deploying Zeto contracts..."
     bash "$DEPLOY_SCRIPT"
