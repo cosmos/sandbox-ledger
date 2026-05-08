@@ -249,54 +249,24 @@ else
   echo "CLI:   $NODE_BIN --home $CHAIN_DIR status"
 
   # ---------------------------------------------------------------------------
-  # Bootstrap Zeto (skip with SKIP_ZETO_BOOTSTRAP=1)
+  # Deploy Zeto contracts (skip with SKIP_ZETO_BOOTSTRAP=1).
   #
-  # Waits briefly for the EVM JSON-RPC port, then:
-  #   1) deploy-zeto.sh        — Zeto_Anon impl + verifiers + factory
-  #   2) sandbox-bootstrap deploy-token  — clones one CBDC token from the factory
+  # Waits briefly for the EVM JSON-RPC port, then runs deploy-zeto.sh which
+  # registers Zeto_Anon and Zeto_AnonNullifier impls + verifiers with the
+  # factory and writes contracts/deployments/sandbox-dev-1.json.
   #
-  # No genesis pre-mint: every user's initial allocation flows through the
-  # UI's Phase 4 "Create user" wizard, which calls Mint with the treasury
-  # signer. That keeps the admin dashboard's tx feed faithful to what the
-  # operator actually did. To re-seed for scripted demos, run
-  # `sandbox-bootstrap mint-genesis ...` manually after bring-up.
-  #
-  # The CLI binary lives in ../sandbox-backend/build; build it first via
-  # `cd ../sandbox-backend && make build`. If missing, this section logs and
-  # exits 0 so the chain stays up.
+  # App-level bootstrap (CBDC token deploy, genesis allocations) is the
+  # responsibility of whatever app is consuming this chain — see the sandbox
+  # repo's scripts/demo.sh for the reference invocation. Keeping the ledger
+  # free of app-specific binaries means this repo can ship public without
+  # leaking private app code.
   # ---------------------------------------------------------------------------
   if [ "${SKIP_ZETO_BOOTSTRAP:-0}" != "1" ]; then
-    EVM_PORT=8545
-    echo "--- Waiting for EVM JSON-RPC on :$EVM_PORT..."
-    for _ in {1..40}; do
-      if nc -z 127.0.0.1 "$EVM_PORT" 2>/dev/null; then break; fi
-      sleep 1
-    done
-
-    BOOTSTRAP_BIN="$CWD/../../sandbox-backend/build/sandbox-bootstrap"
+    # deploy-zeto.sh has its own wait_for_rpc that polls cast block-number
+    # until the chain has produced a block — strictly stronger than a TCP
+    # port check, so we hand off directly.
     DEPLOY_SCRIPT="$CWD/../contracts/deploy-zeto.sh"
-    MANIFEST="$CWD/../contracts/deployments/sandbox-dev-1.json"
-
     echo "--- Deploying Zeto contracts..."
     bash "$DEPLOY_SCRIPT"
-
-    if [ ! -x "$BOOTSTRAP_BIN" ]; then
-      echo "--- WARN: $BOOTSTRAP_BIN not found; skipping token deploy + genesis mint."
-      echo "    Build it via: (cd ../sandbox-backend && make build) and re-run this script."
-    else
-      # Validator key derived from VAL0_MNEMONIC (Anvil-style derivation by sandboxd).
-      # We use the same mnemonic here to recover the EVM private key for the
-      # initialOwner / token treasurer.
-      VAL_PRIV=$(cast wallet derive-private-key "$VAL0_MNEMONIC" 2>/dev/null)
-      echo "--- Deploying CBDC token via factory..."
-      "$BOOTSTRAP_BIN" deploy-token \
-        --rpc "http://127.0.0.1:$EVM_PORT" \
-        --manifest "$MANIFEST" \
-        --owner-key "$VAL_PRIV" \
-        --name CBDC --symbol USDCBDC --impl Zeto_AnonNullifier
-
-      echo "--- Bootstrap complete. Manifest: $MANIFEST"
-      echo "    No genesis allocations — use the UI's Create User wizard to mint to participants."
-    fi
   fi
 fi

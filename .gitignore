@@ -12,3 +12,6 @@ contracts/package.json
 contracts/package-lock.json
 
 .DS_Store
+
+# Local-only Claude Code state: scratch worktrees, plans, etc.
+/.claude/

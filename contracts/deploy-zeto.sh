@@ -31,17 +31,57 @@ DEPLOYER_ADDR=$(cast wallet address "$PRIVATE_KEY" 2>/dev/null)
 echo "--- Deployer: $DEPLOYER_ADDR"
 
 # ---------------------------------------------------------------------------
+# Wait for the JSON-RPC to be ready before any `cast send`. The local chain
+# binds :8545 a few seconds before the EVM module is prepared to accept
+# transactions; without this gate the first `cast send` below races and
+# returns non-JSON, which `jq` then chokes on (set -E aborts the whole
+# script with a misleading line ref). Polls `cast block-number` until it
+# returns a numeric block height ≥ 1 or we hit the timeout.
+# ---------------------------------------------------------------------------
+wait_for_rpc() {
+    local timeout_secs="${RPC_READY_TIMEOUT:-30}"
+    local deadline=$((SECONDS + timeout_secs))
+    while (( SECONDS < deadline )); do
+        local block
+        block=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null || true)
+        if [[ "$block" =~ ^[0-9]+$ ]] && (( block >= 1 )); then
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "ERROR: RPC at $RPC_URL not ready after ${timeout_secs}s" >&2
+    exit 1
+}
+
+echo "--- Waiting for RPC at $RPC_URL"
+wait_for_rpc
+
+# ---------------------------------------------------------------------------
 # Stage 1: deploy Poseidon libraries from pre-built bytecode
+#
+# `--confirmations 2` makes cast send wait for one block on top of the
+# inclusion block before returning. On a fresh Cosmos-EVM chain the
+# default (1 confirmation) returns as soon as the tx is mined, which is
+# before the EVM state has been finalized — subsequent `cast send`
+# commands then race against incomplete state and silently produce
+# garbage on stdout. Two confirmations forces a settled state.
 # ---------------------------------------------------------------------------
 deploy_raw_bytecode() {
     local hex_file="$1"
     local code
     code=$(<"$hex_file")
     # poseidon/*.hex starts with 0x already; cast send --create handles either.
-    cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" \
+    local addr
+    addr=$(cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" \
+        --confirmations 2 \
         --create "$code" \
         --json 2>/dev/null \
-        | jq -r '.contractAddress'
+        | jq -r '.contractAddress')
+    if [[ -z "$addr" || "$addr" == "null" ]]; then
+        echo "ERROR: deploy_raw_bytecode($hex_file) returned no address" >&2
+        exit 1
+    fi
+    echo "$addr"
 }
 
 echo ""
@@ -60,6 +100,9 @@ SMTLIB_PATH="lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib"
 POSEIDON_PATH="lib/iden3-contracts/contracts/lib/Poseidon.sol"
 
 # forge create's --libraries flag links the dependency at deploy time.
+# Note: forge create doesn't support --confirmations like cast send does;
+# the previous deploy_raw_bytecode call already waited for 2 confirmations,
+# so by the time we get here the Poseidon state is settled.
 SMTLIB_ADDR=$(forge create "$SMTLIB_PATH" \
     --rpc-url "$RPC_URL" \
     --private-key "$PRIVATE_KEY" \
