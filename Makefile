@@ -1,7 +1,7 @@
 APP_NAME := sandboxd
 BUILD_DIR := build
 
-.PHONY: build install lint lint-fix test clean tidy
+.PHONY: build install lint lint-fix test test-system clean tidy
 
 build:
 	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/sandboxd
@@ -9,8 +9,8 @@ build:
 install:
 	go install ./cmd/sandboxd
 
-tidy:
-	go mod tidy
+tidy: ## Tidy every Go module in the repo
+	./scripts/go-mod-tidy-all.sh
 
 test:
 	go test ./...
@@ -38,6 +38,15 @@ localnet: build ## Start a local single-node chain in the background
 
 localnet-stop: ## Stop the running local node
 	./scripts/kill-local-node.sh
+
+test-system: build ## Boot a chain (no Zeto bootstrap), run system tests, tear down
+	@bash -c 'set -e; \
+		trap "./scripts/kill-local-node.sh >/dev/null 2>&1 || true" EXIT; \
+		./scripts/kill-local-node.sh >/dev/null 2>&1 || true; \
+		echo "--- Bringing up chain (SKIP_ZETO_BOOTSTRAP=1)"; \
+		SKIP_ZETO_BOOTSTRAP=1 RUN_MODE=background ./scripts/local-node.sh > /tmp/sandboxd-systemtest.log 2>&1; \
+		echo "--- Running system tests"; \
+		go test -tags systemtest -timeout 5m -v ./tests/systemtest/...'
 
 ## Contract deployment targets
 

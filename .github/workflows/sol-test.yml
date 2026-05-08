@@ -1,0 +1,28 @@
+name: Solidity Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: forge test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Forge libraries
+        working-directory: contracts
+        run: scripts/install-libs.sh
+
+      - working-directory: contracts
+        run: forge test --no-match-path "lib/**"

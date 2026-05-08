@@ -15,8 +15,28 @@ code_size_limit = 65535
 
 evm_version = "osaka"
 
-# Allow scripts to read pre-generated Poseidon bytecodes
+# Allow scripts (and tests via vm.readFile) to read pre-built Poseidon bytecode.
 fs_permissions = [{ access = "read", path = "./poseidon" }]
+
+# Library addresses for forge tests of the AnonNullifier variant. Fixed
+# addresses linked at compile time; the test setUp etches the actual
+# bytecode at these addresses before any call. Production deploys use
+# the live chain's actual deploy-zeto.sh-derived addresses.
+libraries = [
+    "lib/iden3-contracts/contracts/lib/Poseidon.sol:PoseidonUnit2L:0x0000000000000000000000000000000000005002",
+    "lib/iden3-contracts/contracts/lib/Poseidon.sol:PoseidonUnit3L:0x0000000000000000000000000000000000005003",
+    "lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib:0x0000000000000000000000000000000000005a47",
+]
+
+[fmt]
+# Auto-generated and vendored sources we don't own:
+#   - Verifier_*.sol are snarkjs output (regen via sandbox-backend's
+#     scripts/regen-verifiers.sh — formatter style is whatever snarkjs emits)
+#   - SmtLib.sol is a vendored iden3 shim
+ignore = [
+    "src/verifiers/*.sol",
+    "src/iden3-shims/SmtLib.sol",
+]
 
 [rpc_endpoints]
 sandbox = "http://127.0.0.1:8545"

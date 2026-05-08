@@ -1,0 +1,30 @@
+name: Solidity Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: forge build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Forge libraries
+        working-directory: contracts
+        run: scripts/install-libs.sh
+
+      # code-size-limit (65535) is set in foundry.toml; some Zeto verifiers
+      # exceed the default 24576 byte cap.
+      - working-directory: contracts
+        run: forge build --sizes
