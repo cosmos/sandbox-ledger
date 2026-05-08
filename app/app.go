@@ -27,6 +27,7 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	cmtcli "github.com/cometbft/cometbft/libs/cli"
+	cmtstore "github.com/cometbft/cometbft/store"
 
 	dbm "github.com/cosmos/cosmos-db"
 	evmante "github.com/cosmos/evm/ante"
@@ -1008,8 +1009,68 @@ func queryCommand() *cobra.Command {
 		authcmd.QueryTxCmd(),
 		sdkserver.QueryBlockCmd(),
 		sdkserver.QueryBlockResultsCmd(),
+		queryBlockHeightCmd(),
 	)
 	cmd.PersistentFlags().String(flags.FlagChainID, "", "The network chain ID")
+	return cmd
+}
+
+// queryBlockHeightCmd reads the latest committed block height directly from the
+// local blockstore, without contacting a running node. The node process must be
+// stopped, since CometBFT holds an exclusive lock on blockstore.db.
+func queryBlockHeightCmd() *cobra.Command {
+	const flagFull = "full"
+
+	cmd := &cobra.Command{
+		Use:   "block-height",
+		Short: "Print the latest committed block height read from the local blockstore (offline)",
+		Long: `Print the latest committed block height by opening blockstore.db under the
+configured node home directly. This command does not contact any RPC node; it
+only reads the filesystem. The node process must not be running, since CometBFT
+holds an exclusive lock on the database.
+
+With --full, additionally prints the full block at the latest height in the
+selected --output format (text|json).`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			serverCtx := sdkserver.GetServerContextFromCmd(cmd)
+			cfg := serverCtx.Config
+
+			blockStoreDB, err := cmtcfg.DefaultDBProvider(&cmtcfg.DBContext{ID: "blockstore", Config: cfg})
+			if err != nil {
+				return fmt.Errorf("failed to open blockstore.db at %s: %w", cfg.DBDir(), err)
+			}
+			defer blockStoreDB.Close()
+
+			bs := cmtstore.NewBlockStore(blockStoreDB)
+			height := bs.Height()
+
+			cmd.Println(height)
+
+			full, _ := cmd.Flags().GetBool(flagFull)
+			if !full {
+				return nil
+			}
+
+			if height == 0 {
+				return errors.New("blockstore is empty; no block to print")
+			}
+			block := bs.LoadBlock(height)
+			if block == nil {
+				return fmt.Errorf("no block found at latest height %d", height)
+			}
+			pb, err := block.ToProto()
+			if err != nil {
+				return fmt.Errorf("failed to convert block to proto: %w", err)
+			}
+
+			clientCtx := client.GetClientContextFromCmd(cmd)
+			return clientCtx.PrintProto(pb)
+		},
+	}
+
+	cmd.Flags().Bool(flagFull, false, "Also print the full block at the latest height")
+	cmd.Flags().StringP(flags.FlagOutput, "o", flags.OutputFormatJSON, "Output format (text|json) for --full")
 	return cmd
 }
 

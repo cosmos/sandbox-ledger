@@ -50,11 +50,16 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             DOCKER_TAG="${{ inputs.tag }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            # Both tag and branch pushes use github.ref_name:
+            #   - tag push  → the git tag  (e.g. v1.0.0)
+            #   - branch push → the branch name (e.g. main)
+            DOCKER_TAG="${{ github.ref_name }}"
           else
             DOCKER_TAG="latest"
           fi
           DOCKER_TAG=$(echo "$DOCKER_TAG" | sed 's/[^a-zA-Z0-9\.-]/-/g')
-          echo "DOCKER_TAG=${DOCKER_TAG}" >> $GITHUB_OUTPUT
+          echo "DOCKER_TAG=${DOCKER_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6

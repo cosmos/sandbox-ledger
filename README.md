@@ -110,6 +110,22 @@ patching. POA still requires you to inject at least one validator before
 `start` — that step depends on the node's consensus key and has to happen
 after `init` (the sample script handles this).
 
+## Offline block-height query
+
+`sandboxd query block-height` reads the latest committed height directly from
+`blockstore.db` under the configured node home, without contacting any RPC
+endpoint. The node process must be stopped, since CometBFT holds an exclusive
+lock on the database.
+
+```bash
+sandboxd query block-height                    # prints the latest height
+sandboxd query block-height --full -o json     # prints height + full block JSON
+sandboxd query block-height --home /data       # against a custom home
+```
+
+Use it to confirm the on-disk tip after a crash, before a snapshot restore, or
+when the RPC endpoint is unreachable.
+
 ## Container
 
 ```bash
