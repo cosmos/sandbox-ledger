@@ -6,7 +6,6 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 contracts/deployments/
-contracts/lib/
 contracts/node_modules/
 contracts/package.json
 contracts/package-lock.json

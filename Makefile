@@ -50,10 +50,28 @@ test-system: build ## Boot a chain (no Zeto bootstrap), run system tests, tear d
 
 ## Contract deployment targets
 
-.PHONY: contracts-setup contracts-build deploy-zeto contracts-clean
+.PHONY: submodules contracts-setup contracts-build deploy-zeto contracts-clean
 
-contracts-setup: ## Install Forge dependencies for Zeto contracts
-	cd contracts && forge install
+# Initialize git submodules + drop the iden3 shims into place. The shims
+# under `contracts/iden3-shims/` patch the pinned upstream
+# iden3-contracts revision for compatibility with newer Zeto: it imports
+# `IHasher` + `PoseidonHasher` (don't exist upstream at our pin) and
+# calls `SmtLib.setHasher` (which the upstream `SmtLib.sol` doesn't
+# expose). The shims are minimal additions / a no-op override; the real
+# hashing path still goes through `PoseidonUnit{2,3}L`. Safe to re-run.
+submodules:
+	git submodule update --init --recursive
+	@mkdir -p contracts/lib/iden3-contracts/contracts/interfaces
+	@mkdir -p contracts/lib/iden3-contracts/contracts/lib/hash
+	@cp contracts/iden3-shims/IHasher.sol \
+		contracts/lib/iden3-contracts/contracts/interfaces/IHasher.sol
+	@cp contracts/iden3-shims/PoseidonHasher.sol \
+		contracts/lib/iden3-contracts/contracts/lib/hash/PoseidonHasher.sol
+	@cp contracts/iden3-shims/SmtLib.sol \
+		contracts/lib/iden3-contracts/contracts/lib/SmtLib.sol
+	@echo "Submodules initialised; iden3 shims populated."
+
+contracts-setup: submodules ## Initialize submodules + iden3 shims (replaces `forge install`)
 
 contracts-build: ## Compile all Zeto contracts
 	cd contracts && forge build
