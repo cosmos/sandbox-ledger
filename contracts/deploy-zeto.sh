@@ -4,9 +4,14 @@ set -Eeuo pipefail
 # ===========================================================================
 # deploy-zeto.sh -- PoC Zeto deployment
 #
-# Registers Zeto_AnonNullifier with the factory. The variant pulls in iden3
-# SmtLib + PoseidonUnit2L/3L, so we deploy those first and link the rest of
-# the contracts against the resulting addresses via `forge script --libraries`.
+# Registers Zeto_AnonNullifier_Burnable with the factory. The variant
+# pulls in iden3 SmtLib + PoseidonUnit2L/3L, so we deploy those first and
+# link the rest of the contracts against the resulting addresses via
+# `forge script --libraries`.
+#
+# Burnable is a strict superset of Zeto_AnonNullifier: same transfer/lock
+# surface, plus a `burn(...)` entry point gated by a
+# Groth16Verifier_BurnNullifier (also deployed by the forge script).
 #
 # Library deploy order:
 #   1. PoseidonUnit2L  (raw bytecode in poseidon/PoseidonUnit2L.hex)
