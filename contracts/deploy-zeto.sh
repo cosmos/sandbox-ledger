@@ -4,8 +4,7 @@ set -Eeuo pipefail
 # ===========================================================================
 # deploy-zeto.sh -- PoC Zeto deployment
 #
-# Registers Zeto_Anon + Zeto_AnonNullifier with the factory. The Anon variant
-# needs no on-chain libraries; the AnonNullifier variant pulls in iden3
+# Registers Zeto_AnonNullifier with the factory. The variant pulls in iden3
 # SmtLib + PoseidonUnit2L/3L, so we deploy those first and link the rest of
 # the contracts against the resulting addresses via `forge script --libraries`.
 #

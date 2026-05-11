@@ -8,7 +8,6 @@ import {IZetoInitializable} from "zeto/lib/interfaces/IZetoInitializable.sol";
 import {IGroth16Verifier} from "zeto/lib/interfaces/IZetoVerifier.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import {Groth16Verifier_Anon} from "../src/verifiers/Verifier_Anon.sol";
 import {Groth16Verifier_AnonNullifierTransfer} from "../src/verifiers/Verifier_AnonNullifierTransfer.sol";
 
 // Tests for the AnonNullifier variant — the one we actually use.
@@ -49,14 +48,13 @@ contract ZetoAnonNullifierTest is Test {
 
         // 3. Set up the verifier slots required by the variant.
         IGroth16Verifier transferV = IGroth16Verifier(address(new Groth16Verifier_AnonNullifierTransfer()));
-        IGroth16Verifier anonV = IGroth16Verifier(address(new Groth16Verifier_Anon()));
         IGroth16Verifier zero = IGroth16Verifier(address(0xBEEF));
 
         IZetoInitializable.VerifiersInfo memory verifiers = IZetoInitializable.VerifiersInfo({
             verifier: transferV,
             depositVerifier: zero,
             withdrawVerifier: zero,
-            lockVerifier: anonV,
+            lockVerifier: zero,
             burnVerifier: zero,
             batchVerifier: zero,
             batchWithdrawVerifier: zero,
