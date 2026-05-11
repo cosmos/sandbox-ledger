@@ -52,26 +52,19 @@ test-system: build ## Boot a chain (no Zeto bootstrap), run system tests, tear d
 
 .PHONY: submodules contracts-setup contracts-build deploy-zeto contracts-clean
 
-# Initialize git submodules + drop the iden3 shims into place. The shims
-# under `contracts/iden3-shims/` patch the pinned upstream
-# iden3-contracts revision for compatibility with newer Zeto: it imports
-# `IHasher` + `PoseidonHasher` (don't exist upstream at our pin) and
-# calls `SmtLib.setHasher` (which the upstream `SmtLib.sol` doesn't
-# expose). The shims are minimal additions / a no-op override; the real
-# hashing path still goes through `PoseidonUnit{2,3}L`. Safe to re-run.
+# Initialize git submodules. Note `contracts/lib/iden3-contracts/` is
+# actually the `kaleido-io/contracts` fork on the `keccak256` branch
+# — Zeto's own upstream dependency (their CI checks out the same
+# fork; see .github/workflows/e2e.yaml in the zeto repo). The fork
+# ships `IHasher.sol`, `PoseidonHasher.sol`, and a `setHasher`
+# extension on `SmtLib` that the canonical `iden3/contracts` doesn't
+# have. The directory name stays `iden3-contracts` so the existing
+# `@iden3/contracts/contracts/=lib/iden3-contracts/contracts/`
+# remapping keeps working unchanged.
 submodules:
 	git submodule update --init --recursive
-	@mkdir -p contracts/lib/iden3-contracts/contracts/interfaces
-	@mkdir -p contracts/lib/iden3-contracts/contracts/lib/hash
-	@cp contracts/iden3-shims/IHasher.sol \
-		contracts/lib/iden3-contracts/contracts/interfaces/IHasher.sol
-	@cp contracts/iden3-shims/PoseidonHasher.sol \
-		contracts/lib/iden3-contracts/contracts/lib/hash/PoseidonHasher.sol
-	@cp contracts/iden3-shims/SmtLib.sol \
-		contracts/lib/iden3-contracts/contracts/lib/SmtLib.sol
-	@echo "Submodules initialised; iden3 shims populated."
 
-contracts-setup: submodules ## Initialize submodules + iden3 shims (replaces `forge install`)
+contracts-setup: submodules ## Initialize submodules (replaces `forge install`)
 
 contracts-build: ## Compile all Zeto contracts
 	cd contracts && forge build

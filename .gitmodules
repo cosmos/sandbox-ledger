@@ -7,10 +7,10 @@
 [submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
-[submodule "contracts/lib/iden3-contracts"]
-	path = contracts/lib/iden3-contracts
-	url = https://github.com/iden3/contracts
-	ignore = dirty
 [submodule "contracts/lib/zeto"]
 	path = contracts/lib/zeto
 	url = https://github.com/hyperledger-labs/zeto
+[submodule "contracts/lib/iden3-contracts"]
+	path = contracts/lib/iden3-contracts
+	url = https://github.com/kaleido-io/contracts
+	branch = keccak256
