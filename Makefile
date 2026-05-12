@@ -50,10 +50,21 @@ test-system: build ## Boot a chain (no Zeto bootstrap), run system tests, tear d
 
 ## Contract deployment targets
 
-.PHONY: contracts-setup contracts-build deploy-zeto contracts-clean
+.PHONY: submodules contracts-setup contracts-build deploy-zeto contracts-clean
 
-contracts-setup: ## Install Forge dependencies for Zeto contracts
-	cd contracts && forge install
+# Initialize git submodules. Note `contracts/lib/iden3-contracts/` is
+# actually the `kaleido-io/contracts` fork on the `keccak256` branch
+# — Zeto's own upstream dependency (their CI checks out the same
+# fork; see .github/workflows/e2e.yaml in the zeto repo). The fork
+# ships `IHasher.sol`, `PoseidonHasher.sol`, and a `setHasher`
+# extension on `SmtLib` that the canonical `iden3/contracts` doesn't
+# have. The directory name stays `iden3-contracts` so the existing
+# `@iden3/contracts/contracts/=lib/iden3-contracts/contracts/`
+# remapping keeps working unchanged.
+submodules:
+	git submodule update --init --recursive
+
+contracts-setup: submodules ## Initialize submodules (replaces `forge install`)
 
 contracts-build: ## Compile all Zeto contracts
 	cd contracts && forge build

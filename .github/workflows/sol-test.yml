@@ -15,14 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
-
-      - name: Install Forge libraries
-        working-directory: contracts
-        run: scripts/install-libs.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - working-directory: contracts
         run: forge test --no-match-path "lib/**"

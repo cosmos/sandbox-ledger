@@ -135,10 +135,18 @@ The `contracts/` tree contains the Zeto privacy contracts and a Forge
 deployment script:
 
 ```bash
-make contracts-setup     # forge install
+make submodules          # git submodule update --init --recursive (idempotent)
 make contracts-build     # forge build
 make deploy-zeto         # deploys to the local chain at $RPC_URL
 ```
+
+`make contracts-setup` is an alias for `make submodules`. Fresh clones
+need it once; subsequent pulls only when submodule pins move.
+
+Note: `contracts/lib/iden3-contracts/` is the `kaleido-io/contracts`
+fork on the `keccak256` branch — Zeto's own upstream dependency. It
+ships the `IHasher` / `PoseidonHasher` interfaces and a `setHasher`
+extension on `SmtLib` that canonical `iden3/contracts` doesn't have.
 
 The script ([contracts/deploy-zeto.sh](contracts/deploy-zeto.sh)) deploys the
 Poseidon hash libraries first (raw bytecode via `cast`), then verifiers,
