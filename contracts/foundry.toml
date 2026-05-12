@@ -13,7 +13,12 @@ via_ir = true
 # Some Groth16 verifier contracts exceed the default 24576 byte limit
 code_size_limit = 65535
 
-evm_version = "osaka"
+# Prague (not Osaka): Osaka activates EIP-7825's 16M per-tx gas cap, which
+# forge's revm simulator enforces and which the burnable Zeto deploy
+# exceeds (forge defaults broadcast gas to 2^30, simulation rejects).
+# The cosmos-evm chain itself defaults to Prague (OsakaTime nil), so this
+# also aligns simulation rules with what the chain actually runs.
+evm_version = "prague"
 
 # Allow scripts (and tests via vm.readFile) to read pre-built Poseidon bytecode.
 fs_permissions = [{ access = "read", path = "./poseidon" }]
