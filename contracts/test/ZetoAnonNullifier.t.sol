@@ -3,15 +3,20 @@ pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 
-import {Zeto_AnonNullifier} from "zeto/zeto_anon_nullifier.sol";
+import {Zeto_AnonNullifierBurnable} from "zeto/zeto_anon_nullifier_burnable.sol";
 import {IZetoInitializable} from "zeto/lib/interfaces/IZetoInitializable.sol";
 import {IGroth16Verifier} from "zeto/lib/interfaces/IZetoVerifier.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import {Groth16Verifier_Anon} from "../src/verifiers/Verifier_Anon.sol";
 import {Groth16Verifier_AnonNullifierTransfer} from "../src/verifiers/Verifier_AnonNullifierTransfer.sol";
+import {Groth16Verifier_BurnNullifier} from "zeto/verifiers/verifier_burn_nullifier.sol";
+import {Commonlib} from "zeto/lib/common/common.sol";
 
-// Tests for the AnonNullifier variant — the one we actually use.
+// Tests for the AnonNullifier_Burnable variant — the one we actually use.
+// Burnable is a strict superset of plain Zeto_AnonNullifier: same mint /
+// transfer / lock surface, plus an extra `burn(...)` entry point gated by
+// the burn nullifier verifier. Tests cover both the inherited surface
+// (mint / mint dedupe / transfer-rejects-bad-proof) and the new burn entry.
 //
 // The variant pulls in iden3 PoseidonUnit2L/3L (raw bytecode, off-chain-
 // generated) plus SmtLib (a Solidity library with `external` functions
@@ -23,14 +28,14 @@ import {Groth16Verifier_AnonNullifierTransfer} from "../src/verifiers/Verifier_A
 // etches the actual bytecode at those addresses so runtime calls work.
 //
 // Why bother: this gates the whole cascade — Poseidon hex bytecode,
-// SmtLib link, Zeto_AnonNullifier clone+init+mint, on-chain SMT root
-// updates — without needing a running chain or backend.
+// SmtLib link, Zeto_AnonNullifier(_Burnable) clone+init+mint, on-chain
+// SMT root updates — without needing a running chain or backend.
 contract ZetoAnonNullifierTest is Test {
     address constant POSEIDON2 = 0x0000000000000000000000000000000000005002;
     address constant POSEIDON3 = 0x0000000000000000000000000000000000005003;
     address constant SMTLIB = 0x0000000000000000000000000000000000005a47;
 
-    Zeto_AnonNullifier internal zeto;
+    Zeto_AnonNullifierBurnable internal zeto;
     address internal owner = address(0xA11CE);
 
     function setUp() public {
@@ -49,15 +54,15 @@ contract ZetoAnonNullifierTest is Test {
 
         // 3. Set up the verifier slots required by the variant.
         IGroth16Verifier transferV = IGroth16Verifier(address(new Groth16Verifier_AnonNullifierTransfer()));
-        IGroth16Verifier anonV = IGroth16Verifier(address(new Groth16Verifier_Anon()));
+        IGroth16Verifier burnV = IGroth16Verifier(address(new Groth16Verifier_BurnNullifier()));
         IGroth16Verifier zero = IGroth16Verifier(address(0xBEEF));
 
         IZetoInitializable.VerifiersInfo memory verifiers = IZetoInitializable.VerifiersInfo({
             verifier: transferV,
             depositVerifier: zero,
             withdrawVerifier: zero,
-            lockVerifier: anonV,
-            burnVerifier: zero,
+            lockVerifier: zero,
+            burnVerifier: burnV,
             batchVerifier: zero,
             batchWithdrawVerifier: zero,
             batchLockVerifier: zero,
@@ -66,8 +71,8 @@ contract ZetoAnonNullifierTest is Test {
 
         // 4. Clone the impl and initialize. Direct construction is blocked
         //    by `_disableInitializers()` in the impl constructor (UUPS).
-        Zeto_AnonNullifier impl = new Zeto_AnonNullifier();
-        zeto = Zeto_AnonNullifier(Clones.clone(address(impl)));
+        Zeto_AnonNullifierBurnable impl = new Zeto_AnonNullifierBurnable();
+        zeto = Zeto_AnonNullifierBurnable(Clones.clone(address(impl)));
         zeto.initialize("Sandbox CBDC", "USDCBDC", owner, verifiers);
     }
 
@@ -125,6 +130,28 @@ contract ZetoAnonNullifierTest is Test {
         bytes memory badProof = hex"00";
         vm.expectRevert();
         zeto.transfer(inputs, outputs, badProof, "");
+    }
+
+    function test_BurnRevertsWithBadProof() public {
+        // Burn with an all-zero proof must not pass the burn verifier;
+        // expect a revert. This gates the burnVerifier wiring at the
+        // ZetoFungibleBurnableNullifier boundary — the burn surface the
+        // wrapper ERC20 (STACK-2757) will call during unshield. Same
+        // shape as test_TransferRevertsWithBadProof: real proof generation
+        // lives off-chain so we only assert that bogus proofs are rejected.
+        uint256[] memory nullifiers = new uint256[](2);
+        nullifiers[0] = 0xAA;
+        nullifiers[1] = 0xBB;
+        uint256 output = 0xCC;
+        uint256 root = 0; // any SMT root — the verifier will reject before the SMT check
+
+        Commonlib.Proof memory badProof = Commonlib.Proof({
+            pA: [uint256(0), uint256(0)],
+            pB: [[uint256(0), uint256(0)], [uint256(0), uint256(0)]],
+            pC: [uint256(0), uint256(0)]
+        });
+        vm.expectRevert();
+        zeto.burn(nullifiers, output, root, badProof, "");
     }
 
     /// @dev Run a contract creation from the given creation bytecode and
