@@ -146,6 +146,7 @@ sed_in_place "$GENESIS" 's/"expedited_voting_period": "86400s"/"expedited_voting
 
 # --- EVM params ---
 jq --arg denom "$DENOM" '.app_state["evm"]["params"]["evm_denom"]=$denom' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+jq '.app_state["feemarket"]["params"]["no_base_fee"]=true' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
 # Active precompiles (only the ones this chain registers — no staking/distr/slashing/ics20/vesting)
 jq '.app_state["evm"]["params"]["active_static_precompiles"]=[
@@ -179,7 +180,6 @@ if [ "${LOAD_TESTING:-}" = "true" ]; then
   echo "--- Applying load testing optimizations..."
   jq '.consensus.params.block.max_gas="52500000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
   jq '.consensus.params.block.max_bytes="104857600"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-  jq '.app_state["feemarket"]["params"]["no_base_fee"]=true' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 fi
 
 echo "--- Validating genesis..."
