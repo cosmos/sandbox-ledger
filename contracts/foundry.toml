@@ -13,7 +13,7 @@ via_ir = true
 # Some Groth16 verifier contracts exceed the default 24576 byte limit
 code_size_limit = 65535
 
-evm_version = "osaka"
+evm_version = "prague"
 
 # Allow scripts (and tests via vm.readFile) to read pre-built Poseidon bytecode.
 fs_permissions = [{ access = "read", path = "./poseidon" }]
