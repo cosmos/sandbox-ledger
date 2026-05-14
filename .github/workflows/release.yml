@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   release-solidity-contracts:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: startsWith(github.ref_name, 'solidity-')
     steps:
       - uses: actions/checkout@v5
