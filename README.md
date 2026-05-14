@@ -154,6 +154,39 @@ tokens, and the factory (Forge script). Deployer key defaults to the
 local-node `user-1` mnemonic; override via `DEPLOYER_MNEMONIC` /
 `PRIVATE_KEY` env vars.
 
+### Contracts
+
+| Contract | Source | Purpose |
+|---|---|---|
+| `Zeto_AnonNullifierBurnable` (impl) | `lib/zeto/...` (submodule) | UUPS-cloneable Zeto fungible token: anonymous transfers via nullifiers, with a `burn(...)` entry point gated by a Groth16 burn verifier. Registered with `ZetoTokenFactory` so per-tenant instances can be spawned. |
+| `ZetoTokenFactory` | `lib/zeto/...` (submodule) | Registers Zeto implementations and clones them behind ERC1967 proxies via `deployZetoFungibleToken(name, symbol, implName, initialOwner)`. |
+| [`WrappedZeto`](contracts/src/WrappedZeto.sol) | local (STACK-2757) | Self-minting ERC20 paired one-to-one with a `Zeto_AnonNullifierBurnable` instance. Bridges public ERC20 ↔ private Zeto notes so the wrapped supply can ride IBC v2 transfers while value is preserved on the private side. The wrapper holds Zeto ownership and is the sole minter/burner of its own ERC20 supply. |
+
+`WrappedZeto` surface:
+
+- `shield(uint256[] commitments, uint256[] amounts, bytes data)` — burns
+  `sum(amounts)` of the caller's wrapped ERC20 and calls
+  `Zeto.mint(commitments, data)`. Conservation: ERC20 supply ↓ by
+  `sum(amounts)`, private commitment value ↑ by the same amount
+  (commitments must encode `amounts` off-chain; the wrapper enforces
+  structural parity but not the cryptographic equality, which is the
+  caller's responsibility).
+- `unshield(uint256[] inputs, uint256 output, uint256 root, Commonlib.Proof proof, address evm_recipient, uint256 amount, bytes data)`
+  — calls `Zeto.burn(inputs, output, root, proof, data)` (the
+  burnable-variant burn entry point: consumes input nullifiers,
+  produces one remainder UTXO, gated by the burn Groth16 verifier),
+  then mints `amount` wrapped ERC20 to `evm_recipient`.
+- `acceptZetoOwnership()` — one-shot bootstrap that wraps the Zeto's
+  `Ownable2Step.acceptOwnership` so the wrapper can be promoted to
+  Zeto owner after `transferOwnership(address(wrapper))` is staged.
+
+[`contracts/script/DeployWrappedZeto.s.sol`](contracts/script/DeployWrappedZeto.s.sol)
+spawns a fresh `Zeto_AnonNullifier_Burnable` instance via the factory,
+deploys the wrapper, performs the 2-step ownership handoff, and appends a
+`wrapped_zeto` block to `contracts/deployments/sandbox-dev-1.json`. The
+`deploy-zeto.sh` orchestrator invokes it as Stage 4 after the factory and
+implementation registration are complete.
+
 ## Layout
 
 ```
