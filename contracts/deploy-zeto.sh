@@ -167,44 +167,10 @@ if [ -f "$BROADCAST_FILE" ]; then
 
     FACTORY=$(jq -r '.contracts[] | select(.name == "ZetoTokenFactory") | .address' "$DEPLOY_OUT")
     echo ""
-    echo "=== Stage 1-3 complete ==="
+    echo "=== Deployment complete ==="
     echo "  Factory: $FACTORY"
 else
     echo "  WARNING: Broadcast log not found at $BROADCAST_FILE"
     echo "  Check forge script output above for errors."
     exit 1
 fi
-
-# ---------------------------------------------------------------------------
-# Stage 4: deploy WrappedZeto ERC20 bridge (STACK-2757)
-#
-# Spawns a Zeto_AnonNullifier_Burnable instance via the factory, deploys
-# the WrappedZeto wrapper pointing at it, and transfers Ownable2Step
-# ownership of the Zeto instance to the wrapper (the wrapper is the only
-# account allowed to call Zeto.mint during shield()).
-#
-# The wrapper deploy script appends a top-level `wrapped_zeto` object to
-# the manifest with both addresses and the ERC20 metadata. Downstream
-# (backend RPC wiring -- follow-up PR after multi-tenant lands) reads
-# `wrapped_zeto.wrapper` to learn the Deposit/Withdraw entry point.
-# ---------------------------------------------------------------------------
-echo ""
-echo "=== Stage 4: deploying WrappedZeto (STACK-2757) ==="
-
-forge script script/DeployWrappedZeto.s.sol:DeployWrappedZeto \
-    --rpc-url "$RPC_URL" \
-    --private-key "$PRIVATE_KEY" \
-    --broadcast \
-    --slow \
-    --code-size-limit 65535 \
-    "${LIBS_FLAG[@]}" \
-    -vvv
-
-WRAPPER=$(jq -r '.wrapped_zeto.wrapper // empty' "$DEPLOY_OUT")
-ZETO_INSTANCE=$(jq -r '.wrapped_zeto.zeto // empty' "$DEPLOY_OUT")
-
-echo ""
-echo "=== Deployment complete ==="
-echo "  Factory:      $FACTORY"
-echo "  Zeto inst:    $ZETO_INSTANCE"
-echo "  WrappedZeto:  $WRAPPER"
