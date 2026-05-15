@@ -44,7 +44,13 @@ contract MockZetoFungible is IZetoFungible {
         _nextMintAmount = amount;
     }
 
-    function mint(uint256[] calldata utxos, bytes calldata /* data */ ) external override {
+    function mint(
+        uint256[] calldata utxos,
+        bytes calldata /* data */
+    )
+        external
+        override
+    {
         require(msg.sender == owner_, "MockZeto: only owner mints");
         if (revertNext) {
             revertNext = false;
@@ -56,7 +62,13 @@ contract MockZetoFungible is IZetoFungible {
         mintCalls++;
     }
 
-    function deposit(uint256 amount, uint256[] calldata outputs, bytes calldata, /* proof */ bytes calldata /* data */ )
+    function deposit(
+        uint256 amount,
+        uint256[] calldata outputs,
+        bytes calldata,
+        /* proof */
+        bytes calldata /* data */
+    )
         external
         override
     {
@@ -77,7 +89,10 @@ contract MockZetoFungible is IZetoFungible {
         uint256, /* output */
         bytes calldata, /* proof */
         bytes calldata /* data */
-    ) external override {
+    )
+        external
+        override
+    {
         if (revertNext) {
             revertNext = false;
             revert("MockZeto: forced revert");
@@ -98,7 +113,11 @@ contract MockZetoFactory is IZetoFactory {
         string calldata, /* symbol */
         string calldata, /* tokenImplementation */
         address initialOwner
-    ) external override returns (address) {
+    )
+        external
+        override
+        returns (address)
+    {
         last = new MockZetoFungible(initialOwner);
         return address(last);
     }
