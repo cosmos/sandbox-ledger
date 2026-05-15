@@ -172,11 +172,17 @@ jq --arg denom "$DENOM" --arg display_denom "$DISPLAY_DENOM" --arg symbol "$SYMB
 # --- Block params ---
 jq '.consensus.params.block.max_gas="200000000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
+# Zero-fee chain. Sandbox is RPC-gated (no open mempool), so fees aren't
+# acting as a spam deterrent. The Paymaster pattern in the backend exists
+# for sender-anonymity, not gas coverage — neither admin nor paymaster
+# keys need to hold a balance.
+jq '.app_state["feemarket"]["params"]["no_base_fee"]=true' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+jq '.app_state["feemarket"]["params"]["base_fee"]="0.000000000000000000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
 if [ "${LOAD_TESTING:-}" = "true" ]; then
   echo "--- Applying load testing optimizations..."
   jq '.consensus.params.block.max_gas="52500000"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
   jq '.consensus.params.block.max_bytes="104857600"' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-  jq '.app_state["feemarket"]["params"]["no_base_fee"]=true' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 fi
 
 echo "--- Validating genesis..."
