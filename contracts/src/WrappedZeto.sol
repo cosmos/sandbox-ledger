@@ -1,23 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 // ERC20 wrapper paired 1:1 with a Zeto_AnonNullifierBurnable. The wrapper
 // deploys its own Zeto via the factory in the constructor with itself as
-// owner — no two-step ownership handoff. Sole minter and burner of its own
-// supply; sole owner of the paired Zeto. Conservation:
+// owner. Public ↔ private flows go through Zeto.deposit / Zeto.withdraw,
+// whose Groth16 verifiers (depositVerifier / withdrawVerifier) bind the
+// public `amount` to the commitment values — so ERC20 supply moves in
+// lockstep with the private side. Conservation:
 // ERC20.totalSupply() + private_commitment_value_sum == constant.
 pragma solidity ^0.8.27;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Commonlib} from "zeto/lib/common/common.sol";
 
-interface IZetoBurnable {
+interface IZetoFungible {
     function mint(uint256[] calldata utxos, bytes calldata data) external;
 
-    function burn(
-        uint256[] calldata nullifiers,
+    function deposit(
+        uint256 amount,
+        uint256[] calldata outputs,
+        bytes calldata proof,
+        bytes calldata data
+    ) external;
+
+    function withdraw(
+        uint256 amount,
+        uint256[] calldata inputs,
         uint256 output,
-        uint256 root,
-        Commonlib.Proof calldata proof,
+        bytes calldata proof,
         bytes calldata data
     ) external;
 
@@ -34,21 +42,19 @@ interface IZetoFactory {
 }
 
 contract WrappedZeto is ERC20, Ownable {
-    IZetoBurnable public immutable zeto;
+    IZetoFungible public immutable zeto;
     uint8 private immutable _decimals;
 
-    error LengthMismatch(uint256 commitments, uint256 amounts);
     error ZeroCommitment(uint256 index);
-    error ZeroAmount(uint256 index);
+    error ZeroAmount();
     error ZeroRecipient();
-    error ZeroUnshieldAmount();
+    error NoCommitments();
 
-    event Shielded(address indexed from, uint256 totalAmount, uint256 commitmentCount);
+    event Shielded(address indexed from, uint256 amount, uint256 commitmentCount);
     event Unshielded(address indexed to, uint256 amount, uint256 nullifierCount);
 
-    /// @param factory     ZetoTokenFactory holding the registered impls.
-    /// @param zetoImpl    Implementation name registered with the factory,
-    ///                    e.g. "Zeto_AnonNullifierBurnable".
+    /// @param factory     ZetoTokenFactory with the registered impls.
+    /// @param zetoImpl    Implementation name registered with the factory.
     constructor(
         address factory,
         string memory zetoImpl,
@@ -57,11 +63,10 @@ contract WrappedZeto is ERC20, Ownable {
         uint8 decimals_
     ) ERC20(name_, symbol_) Ownable(msg.sender) {
         require(factory != address(0), "WrappedZeto: zero factory");
-        // Wrapper is the Zeto's initialOwner from inception. No 2-step handoff.
         address z = IZetoFactory(factory).deployZetoFungibleToken(
             name_, symbol_, zetoImpl, address(this)
         );
-        zeto = IZetoBurnable(z);
+        zeto = IZetoFungible(z);
         _decimals = decimals_;
     }
 
@@ -69,63 +74,68 @@ contract WrappedZeto is ERC20, Ownable {
         return _decimals;
     }
 
-    /// @notice Genesis hatch: mint one commitment on the paired Zeto with no
-    ///         ERC20 round-trip. Used once at asset-creation time.
-    function seedAndShield(uint256 commitment, uint256 amount, bytes calldata data) external onlyOwner {
+    /// @notice Genesis hatch. Owner-only — the admin is the asset issuer and
+    ///         the trust anchor for the initial supply. Calls Zeto.mint with
+    ///         the admin's chosen commitment; `amount` is the admin's
+    ///         self-declared issuance value, surfaced in the event for
+    ///         downstream indexers. Not cryptographically bound to the
+    ///         commitment (a deposit proof would be tautological here since
+    ///         the admin picks both inputs).
+    function seedAndShield(
+        uint256 amount,
+        uint256 commitment,
+        bytes calldata data
+    ) external onlyOwner {
+        if (amount == 0) revert ZeroAmount();
         if (commitment == 0) revert ZeroCommitment(0);
-        if (amount == 0) revert ZeroAmount(0);
 
-        uint256[] memory cs = new uint256[](1);
-        cs[0] = commitment;
-        zeto.mint(cs, data);
+        uint256[] memory outs = new uint256[](1);
+        outs[0] = commitment;
+        zeto.mint(outs, data);
 
         emit Shielded(msg.sender, amount, 1);
     }
 
-    /// @notice Public → private. Burns `sum(amounts)` ERC20 from the caller
-    ///         and mints `commitments` on the paired Zeto.
+    /// @notice Public → private. Burns `amount` ERC20 from caller; the
+    ///         deposit verifier binds `amount` to sum(commitment values).
     function shield(
+        uint256 amount,
         uint256[] calldata commitments,
-        uint256[] calldata amounts,
+        bytes calldata depositProof,
         bytes calldata data
     ) external {
-        if (commitments.length != amounts.length) {
-            revert LengthMismatch(commitments.length, amounts.length);
-        }
-
-        uint256 total = 0;
-        for (uint256 i = 0; i < amounts.length; i++) {
+        if (amount == 0) revert ZeroAmount();
+        if (commitments.length == 0) revert NoCommitments();
+        for (uint256 i = 0; i < commitments.length; i++) {
             if (commitments[i] == 0) revert ZeroCommitment(i);
-            if (amounts[i] == 0) revert ZeroAmount(i);
-            total += amounts[i];
         }
 
         // CEI: burn before external call.
-        _burn(msg.sender, total);
-        zeto.mint(commitments, data);
+        _burn(msg.sender, amount);
+        zeto.deposit(amount, commitments, depositProof, data);
 
-        emit Shielded(msg.sender, total, commitments.length);
+        emit Shielded(msg.sender, amount, commitments.length);
     }
 
-    /// @notice Private → public. Consumes input nullifiers via Zeto.burn
-    ///         (Groth16-gated) and mints `amount` ERC20 to `evm_recipient`.
+    /// @notice Private → public. Calls Zeto.withdraw, whose verifier binds
+    ///         `amount` to (sum(input values) − output value). Then mints
+    ///         `amount` ERC20 — safe because the binding is cryptographic.
     function unshield(
+        uint256 amount,
         uint256[] calldata inputs,
         uint256 output,
-        uint256 root,
-        Commonlib.Proof calldata proof,
-        address evm_recipient,
-        uint256 amount,
+        bytes calldata withdrawProof,
+        address recipient,
         bytes calldata data
     ) external {
-        if (evm_recipient == address(0)) revert ZeroRecipient();
-        if (amount == 0) revert ZeroUnshieldAmount();
+        if (recipient == address(0)) revert ZeroRecipient();
+        if (amount == 0) revert ZeroAmount();
 
         // Consume private side first so a reentrant callback sees the public
         // supply un-credited, never double-credited.
-        zeto.burn(inputs, output, root, proof, data);
-        _mint(evm_recipient, amount);
+        zeto.withdraw(amount, inputs, output, withdrawProof, data);
+        _mint(recipient, amount);
 
-        emit Unshielded(evm_recipient, amount, inputs.length);
+        emit Unshielded(recipient, amount, inputs.length);
     }
 }
