@@ -44,7 +44,7 @@ contract MockZetoFungible is IZetoFungible {
         _nextMintAmount = amount;
     }
 
-    function mint(uint256[] calldata utxos, bytes calldata /* data */) external override {
+    function mint(uint256[] calldata utxos, bytes calldata /* data */ ) external override {
         require(msg.sender == owner_, "MockZeto: only owner mints");
         if (revertNext) {
             revertNext = false;
@@ -56,12 +56,10 @@ contract MockZetoFungible is IZetoFungible {
         mintCalls++;
     }
 
-    function deposit(
-        uint256 amount,
-        uint256[] calldata outputs,
-        bytes calldata, /* proof */
-        bytes calldata /* data */
-    ) external override {
+    function deposit(uint256 amount, uint256[] calldata outputs, bytes calldata, /* proof */ bytes calldata /* data */ )
+        external
+        override
+    {
         if (revertNext) {
             revertNext = false;
             revert("MockZeto: forced revert");
@@ -152,14 +150,7 @@ contract WrappedZetoTest is Test {
         uint256[] memory inputs = new uint256[](2);
         inputs[0] = uint256(keccak256(abi.encode("nul", amount, to, "0")));
         inputs[1] = uint256(keccak256(abi.encode("nul", amount, to, "1")));
-        wrapper.unshield(
-            amount,
-            inputs,
-            uint256(keccak256(abi.encode("out", amount, to))),
-            "",
-            to,
-            ""
-        );
+        wrapper.unshield(amount, inputs, uint256(keccak256(abi.encode("out", amount, to))), "", to, "");
     }
 
     // ---------------------------------------------------------------

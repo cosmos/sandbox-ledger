@@ -46,15 +46,8 @@ contract DeployWrappedZeto is Script {
         console.log("Manifest updated:", MANIFEST_PATH);
     }
 
-    function _readContractAddress(
-        string memory manifest,
-        string memory target
-    ) internal pure returns (address) {
-        string memory query = string.concat(
-            ".contracts[?(@.name==\"",
-            target,
-            "\")].address"
-        );
+    function _readContractAddress(string memory manifest, string memory target) internal pure returns (address) {
+        string memory query = string.concat(".contracts[?(@.name==\"", target, "\")].address");
         bytes memory raw = vm.parseJson(manifest, query);
         if (raw.length == 0) return address(0);
         return abi.decode(raw, (address));

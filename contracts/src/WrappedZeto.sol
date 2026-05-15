@@ -14,12 +14,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 interface IZetoFungible {
     function mint(uint256[] calldata utxos, bytes calldata data) external;
 
-    function deposit(
-        uint256 amount,
-        uint256[] calldata outputs,
-        bytes calldata proof,
-        bytes calldata data
-    ) external;
+    function deposit(uint256 amount, uint256[] calldata outputs, bytes calldata proof, bytes calldata data) external;
 
     function withdraw(
         uint256 amount,
@@ -55,17 +50,12 @@ contract WrappedZeto is ERC20, Ownable {
 
     /// @param factory     ZetoTokenFactory with the registered impls.
     /// @param zetoImpl    Implementation name registered with the factory.
-    constructor(
-        address factory,
-        string memory zetoImpl,
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_
-    ) ERC20(name_, symbol_) Ownable(msg.sender) {
+    constructor(address factory, string memory zetoImpl, string memory name_, string memory symbol_, uint8 decimals_)
+        ERC20(name_, symbol_)
+        Ownable(msg.sender)
+    {
         require(factory != address(0), "WrappedZeto: zero factory");
-        address z = IZetoFactory(factory).deployZetoFungibleToken(
-            name_, symbol_, zetoImpl, address(this)
-        );
+        address z = IZetoFactory(factory).deployZetoFungibleToken(name_, symbol_, zetoImpl, address(this));
         zeto = IZetoFungible(z);
         _decimals = decimals_;
     }
@@ -81,11 +71,7 @@ contract WrappedZeto is ERC20, Ownable {
     ///         downstream indexers. Not cryptographically bound to the
     ///         commitment (a deposit proof would be tautological here since
     ///         the admin picks both inputs).
-    function seedAndShield(
-        uint256 amount,
-        uint256 commitment,
-        bytes calldata data
-    ) external onlyOwner {
+    function seedAndShield(uint256 amount, uint256 commitment, bytes calldata data) external onlyOwner {
         if (amount == 0) revert ZeroAmount();
         if (commitment == 0) revert ZeroCommitment(0);
 
@@ -98,12 +84,9 @@ contract WrappedZeto is ERC20, Ownable {
 
     /// @notice Public → private. Burns `amount` ERC20 from caller; the
     ///         deposit verifier binds `amount` to sum(commitment values).
-    function shield(
-        uint256 amount,
-        uint256[] calldata commitments,
-        bytes calldata depositProof,
-        bytes calldata data
-    ) external {
+    function shield(uint256 amount, uint256[] calldata commitments, bytes calldata depositProof, bytes calldata data)
+        external
+    {
         if (amount == 0) revert ZeroAmount();
         if (commitments.length == 0) revert NoCommitments();
         for (uint256 i = 0; i < commitments.length; i++) {
