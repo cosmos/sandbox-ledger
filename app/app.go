@@ -51,7 +51,6 @@ import (
 	"github.com/cosmos/evm/x/feemarket"
 	feemarketkeeper "github.com/cosmos/evm/x/feemarket/keeper"
 	feemarkettypes "github.com/cosmos/evm/x/feemarket/types"
-	ibccallbackskeeper "github.com/cosmos/evm/x/ibc/callbacks/keeper"
 	"github.com/cosmos/evm/x/vm"
 	evmkeeper "github.com/cosmos/evm/x/vm/keeper"
 	evmtypes "github.com/cosmos/evm/x/vm/types"
@@ -60,7 +59,6 @@ import (
 	gmp "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp"
 	gmpkeeper "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/keeper"
 	gmptypes "github.com/cosmos/ibc-go/v11/modules/apps/27-gmp/types"
-	ibccallbacks "github.com/cosmos/ibc-go/v11/modules/apps/callbacks"
 	ibccallbacksv2 "github.com/cosmos/ibc-go/v11/modules/apps/callbacks/v2"
 	transfer "github.com/cosmos/ibc-go/v11/modules/apps/transfer"
 	transferkeeper "github.com/cosmos/ibc-go/v11/modules/apps/transfer/keeper"
@@ -237,7 +235,6 @@ type SandboxApp struct {
 	// IBC keepers
 	IBCKeeper      *ibckeeper.Keeper
 	TransferKeeper *transferkeeper.Keeper
-	CallbackKeeper ibccallbackskeeper.ContractKeeper
 	GMPKeeper      *gmpkeeper.Keeper
 
 	TokenFactoryKeeper tokenfactorykeeper.Keeper
@@ -477,17 +474,8 @@ func NewApp(
 		app.TransferKeeper,
 	)
 
-	// ---- IBC transfer stack (v1) ----
-	var transferStack porttypes.IBCModule
-	transferStack = transfer.NewIBCModule(app.TransferKeeper)
-	transferStack = erc20.NewIBCMiddleware(app.Erc20Keeper, transferStack)
-	app.CallbackKeeper = ibccallbackskeeper.NewKeeper(app.AccountKeeper, app.EVMKeeper, app.Erc20Keeper)
-	callbacksMiddleware := ibccallbacks.NewIBCMiddleware(app.CallbackKeeper, maxCallbackGas)
-	callbacksMiddleware.SetICS4Wrapper(app.IBCKeeper.ChannelKeeper)
-	callbacksMiddleware.SetUnderlyingApplication(transferStack)
-	transferStack = callbacksMiddleware
-
 	// ---- IBC transfer stack (v2) ----
+	// V1 is disabled.
 	var transferStackV2 ibcapi.IBCModule
 	transferStackV2 = transferv2.NewIBCModule(app.TransferKeeper)
 	transferStackV2 = erc20v2.NewIBCMiddleware(transferStackV2, app.Erc20Keeper)
@@ -501,12 +489,12 @@ func NewApp(
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
-	ibcRouter := porttypes.NewRouter()
-	ibcRouter.AddRoute(ibctransfertypes.ModuleName, transferStack)
 	ibcRouterV2 := ibcapi.NewRouter()
 	ibcRouterV2.AddRoute(ibctransfertypes.ModuleName, transferStackV2)
 
-	app.IBCKeeper.SetRouter(ibcRouter)
+	// Keep an empty sealed V1 router installed to avoid nil-router panics.
+	// No V1 routes are registered, so V1 transfer handling remains disabled.
+	app.IBCKeeper.SetRouter(porttypes.NewRouter())
 	app.IBCKeeper.SetRouterV2(ibcRouterV2)
 
 	clientKeeper := app.IBCKeeper.ClientKeeper

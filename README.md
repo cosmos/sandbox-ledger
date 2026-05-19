@@ -13,8 +13,8 @@ Fungible Token) bridge built on top of ICS-27 GMP for cross-chain mint/burn.
 | **gov** | On-chain governance, voting power weighted by POA |
 | **upgrade** | Coordinated chain upgrades |
 | **EVM** (vm + feemarket + erc20) | Ethereum execution, ETH JSON-RPC, ERC-20 ↔ Cosmos coin conversion |
-| **IBC core + transfer (v1 + v2)** | Standard IBC + IBC v2 packet path |
-| **IBC callbacks (v1 + v2)** | Lets contracts/modules receive ack & timeout callbacks on transfer / GMP packets |
+| **IBC core + transfer (v2)** | IBC v2 packet path for transfer and GMP routing |
+| **IBC callbacks (v2)** | Lets contracts/modules receive ack & timeout callbacks on transfer / GMP packets |
 | **27-gmp** | ICS-27 General Message Passing — IBC v2 cross-chain `MsgSendCall` |
 | **attestations** light client | Sole IBC light-client type — counterparties verify packets via signed attestations from a configured EOA quorum (no 07-tendermint) |
 | **tokenfactory** | Permissionless `factory/<creator>/<sub>` token creation; admin-gated mint/burn |
