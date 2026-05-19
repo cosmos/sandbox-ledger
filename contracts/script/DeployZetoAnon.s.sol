@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// PoC deploy script. Registers Zeto_AnonNullifier_Burnable (nullifier +
+// PoC deploy script. Registers Zeto_AnonNullifierBurnable (nullifier +
 // on-chain SMT + burn primitive) with the factory.
 //
 // NOTE on the filename: this script is still called DeployZetoAnon.s.sol
@@ -69,13 +69,13 @@ contract DeployZetoAnon is Script {
         // VerifiersInfo packs 9 slots: verifier, deposit, withdraw, lock,
         // burn, batchVerifier, batchWithdraw, batchLock, batchBurn.
         //
-        // Zeto_AnonNullifier_Burnable: locked variants are not exercised by
+        // Zeto_AnonNullifierBurnable: locked variants are not exercised by
         // the PoC, so lock/batchLock stay ZERO. Burn requires a non-zero
-        // burnVerifier slot (the wrapper from STACK-2757 will be the only
-        // caller). Batch burn isn't deployed (no batch zkey yet) so
+        // burnVerifier slot (non-zero address required by the initializer).
+        // Batch burn isn't deployed (no batch zkey yet) so
         // batchBurnVerifier stays ZERO.
         factory.registerImplementation(
-            "Zeto_AnonNullifier_Burnable",
+            "Zeto_AnonNullifierBurnable",
             ZetoTokenFactory.ImplementationInfo({
                 implementation: implAnonNullifierBurnable,
                 verifiers: IZetoInitializable.VerifiersInfo({
@@ -96,7 +96,7 @@ contract DeployZetoAnon is Script {
 
         console.log("Groth16Verifier_AnonNullifierTransfer:", anonNullV);
         console.log("Groth16Verifier_BurnNullifier:", burnNullV);
-        console.log("Zeto_AnonNullifier_Burnable (impl):", implAnonNullifierBurnable);
+        console.log("Zeto_AnonNullifierBurnable (impl):", implAnonNullifierBurnable);
         console.log("ZetoTokenFactory:", address(factory));
     }
 }
