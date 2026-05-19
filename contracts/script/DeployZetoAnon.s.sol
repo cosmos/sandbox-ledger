@@ -71,8 +71,8 @@ contract DeployZetoAnon is Script {
         //
         // Zeto_AnonNullifierBurnable: locked variants are not exercised by
         // the PoC, so lock/batchLock stay ZERO. Burn requires a non-zero
-        // burnVerifier slot (the wrapper from STACK-2757 will be the only
-        // caller). Batch burn isn't deployed (no batch zkey yet) so
+        // burnVerifier slot (non-zero address required by the initializer).
+        // Batch burn isn't deployed (no batch zkey yet) so
         // batchBurnVerifier stays ZERO.
         factory.registerImplementation(
             "Zeto_AnonNullifierBurnable",
