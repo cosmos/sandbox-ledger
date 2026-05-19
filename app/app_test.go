@@ -103,6 +103,14 @@ func TestIBCv2Routes(t *testing.T) {
 		"gmp v2 route must be registered for IBC v2 general message passing")
 }
 
+func TestIBCv1RouterIsEmptyButInitialized(t *testing.T) {
+	app := newTestApp(t)
+
+	require.NotNil(t, app.IBCKeeper.PortKeeper.Router, "v1 router must be initialized to avoid nil-router panics")
+	require.False(t, app.IBCKeeper.PortKeeper.Router.HasRoute(ibctransfertypes.ModuleName),
+		"v1 transfer route must remain disabled")
+}
+
 // TestAttestations_CreateClient creates a real attestations client through
 // the full IBCKeeper.ClientKeeper.CreateClient path. Indirectly verifies:
 //   - the attestations LightClientModule is registered as a client route,
