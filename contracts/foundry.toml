@@ -4,14 +4,11 @@ out = "out"
 libs = ["lib"]
 script = "script"
 
-# Match Zeto's Hardhat compiler settings exactly
+# Match Zeto's Hardhat compiler settings exactly.
 solc_version = "0.8.27"
 optimizer = true
 optimizer_runs = 25
 via_ir = true
-
-# Some Groth16 verifier contracts exceed the default 24576 byte limit
-code_size_limit = 65535
 
 evm_version = "prague"
 
