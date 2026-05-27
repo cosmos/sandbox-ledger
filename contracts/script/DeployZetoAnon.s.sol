@@ -7,10 +7,8 @@ pragma solidity ^0.8.27;
 import "forge-std/Script.sol";
 
 // Non-repudiation transfer verifiers (vendored upstream).
-import {Groth16Verifier_AnonEncNullifierNonRepudiation} from
-    "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation.sol";
-import {Groth16Verifier_AnonEncNullifierNonRepudiationBatch} from
-    "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation_batch.sol";
+import {Groth16Verifier_AnonEncNullifierNonRepudiation} from "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation.sol";
+import {Groth16Verifier_AnonEncNullifierNonRepudiationBatch} from "zeto/verifiers/verifier_anon_enc_nullifier_non_repudiation_batch.sol";
 
 // Vendored verifiers for unused-but-required factory slots.
 import {Groth16Verifier_Deposit} from "zeto/verifiers/verifier_deposit.sol";

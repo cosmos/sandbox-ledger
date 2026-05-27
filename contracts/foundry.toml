@@ -36,6 +36,15 @@ libraries = [
 ]
 
 [fmt]
+# Bump line length above the longest vendored import path (the Zeto
+# NonRepudiation verifier filenames push imports to ~130 chars). At
+# the default 120, older and newer foundry versions wrap import lines
+# differently — older puts the path on the next line, newer puts the
+# symbol inside `{ ... }` — so `--check` flips depending on which
+# foundry version CI installs. Setting the budget above the longest
+# line stops both from wrapping.
+line_length = 140
+
 # Vendored iden3 SmtLib shim — we don't own the formatting style.
 ignore = [
     "src/iden3-shims/SmtLib.sol",
