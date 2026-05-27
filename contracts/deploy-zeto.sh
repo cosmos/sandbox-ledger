@@ -13,9 +13,7 @@ set -Eeuo pipefail
 # semantics + recipient-encrypted amounts, every transfer also encrypts
 # the ownership info to a per-token authority (arbiter) pubkey. The
 # arbiter is set per-token via `setArbiter(...)` from the backend's
-# CreateAsset flow, not here. STACK-2822 swapped this from the previous
-# AnonNullifierBurnable variant (burnable was unused after the WrappedZeto
-# removal in #15).
+# CreateAsset flow, not here.
 #
 # Library deploy order:
 #   1. PoseidonUnit2L  (raw bytecode in poseidon/PoseidonUnit2L.hex)

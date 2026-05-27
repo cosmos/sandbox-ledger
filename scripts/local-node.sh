@@ -255,8 +255,8 @@ else
   # Deploy Zeto contracts (skip with SKIP_ZETO_BOOTSTRAP=1).
   #
   # Waits briefly for the EVM JSON-RPC port, then runs deploy-zeto.sh which
-  # registers the Zeto_AnonNullifier_Burnable impl + verifiers (incl. burn
-  # verifier) with the factory and writes contracts/deployments/sandbox-dev-1.json.
+  # registers the Zeto_AnonEncNullifierNonRepudiation impl + verifiers
+  # with the factory and writes contracts/deployments/sandbox-dev-1.json.
   #
   # App-level bootstrap (CBDC token deploy, genesis allocations) is the
   # responsibility of whatever app is consuming this chain — see the sandbox

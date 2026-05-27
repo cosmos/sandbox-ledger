@@ -24,7 +24,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # code-size-limit (65535) is set in foundry.toml; some Zeto verifiers
-      # exceed the default 24576 byte cap.
+      # `--sizes` enforces EIP-170 (24576 bytes) which our chain raises to
+      # 49152 via the cosmos/go-ethereum fork — and the
+      # AnonEncNullifierNonRepudiation impl is ~28 KB. `code_size_limit`
+      # in foundry.toml lifts the cap for `forge test`'s EVM, but `--sizes`
+      # ignores it. Drop the flag; the test job exercises real deploys.
       - working-directory: contracts
-        run: forge build --sizes
+        run: forge build
