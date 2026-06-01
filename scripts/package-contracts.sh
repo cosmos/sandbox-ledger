@@ -38,27 +38,24 @@ trap 'rm -rf release-artifacts' EXIT
 # excluded.
 #
 # This set mirrors what deploy-zeto.sh + script/DeployZetoAnon.s.sol
-# deploys: our local AnonNullifier transfer verifier, iden3's SmtLib
-# (linked at deploy time against PoseidonUnit2L/3L), the Zeto factory
-# and burnable nullifier token implementation, and the vendored Zeto
-# verifiers the factory registers in the VerifiersInfo struct.
+# deploys: iden3's SmtLib (linked at deploy time against
+# PoseidonUnit2L/3L), the Zeto factory and AnonEncNullifierNonRepudiation
+# token implementation, and the vendored Zeto verifiers the factory
+# registers in the VerifiersInfo struct.
 contracts=(
-  # Local verifier (snarkjs-generated against our zkey)
-  "Verifier_AnonNullifierTransfer.sol:Groth16Verifier_AnonNullifierTransfer"
-
   # iden3 SmtLib (linked at deploy time against PoseidonUnit2L/3L)
   "SmtLib.sol:SmtLib"
 
-  # Zeto factory + Zeto_AnonNullifier_Burnable implementation
+  # Zeto factory + AnonEncNullifierNonRepudiation implementation
   "factory.sol:ZetoTokenFactory"
-  "zeto_anon_nullifier_burnable.sol:Zeto_AnonNullifierBurnable"
+  "zeto_anon_enc_nullifier_non_repudiation.sol:Zeto_AnonEncNullifierNonRepudiation"
 
   # Vendored Zeto verifiers registered with the factory
-  "verifier_anon_nullifier_transfer_batch.sol:Groth16Verifier_AnonNullifierTransferBatch"
+  "verifier_anon_enc_nullifier_non_repudiation.sol:Groth16Verifier_AnonEncNullifierNonRepudiation"
+  "verifier_anon_enc_nullifier_non_repudiation_batch.sol:Groth16Verifier_AnonEncNullifierNonRepudiationBatch"
   "verifier_deposit.sol:Groth16Verifier_Deposit"
   "verifier_withdraw_nullifier.sol:Groth16Verifier_WithdrawNullifier"
   "verifier_withdraw_nullifier_batch.sol:Groth16Verifier_WithdrawNullifierBatch"
-  "verifier_burn_nullifier.sol:Groth16Verifier_BurnNullifier"
 )
 
 # Pre-built Poseidon library bytecode. These are circom-generated blobs
