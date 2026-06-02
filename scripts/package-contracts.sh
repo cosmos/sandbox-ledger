@@ -87,6 +87,35 @@ for entry in "${contracts[@]}"; do
   cp "$src" "$staging/bytecode/${contract_name}.json"
 done
 
+# Guardrail: every shipped artifact whose bytecode references library
+# placeholders MUST also expose linkReferences. The previous release
+# shipped artifacts that looked complete (non-empty bytecode, empty
+# linkReferences) but in fact had synthetic addresses 0x...5002/5003/5a47
+# baked in by foundry.toml's libraries setting. Consumers that cast-send
+# those bytecodes deploy contracts that delegate-call dead addresses and
+# silently fail with OZ FailedCall(). Catch the regression here.
+echo "🔍 Verifying shipped artifacts are properly linked"
+for art in "$staging/bytecode/"*.json; do
+  bc=$(jq -r '.bytecode.object // empty' "$art")
+  drt=$(jq -r '.deployedBytecode.object // empty' "$art")
+  refs_creation=$(jq -r '.bytecode.linkReferences // {} | [.. | objects | select(has("start"))] | length' "$art")
+  refs_runtime=$(jq -r '.deployedBytecode.linkReferences // {} | [.. | objects | select(has("start"))] | length' "$art")
+  # Match 20-byte address sequences that LOOK like synthetic placeholders
+  # (24 leading zero-hex nibbles followed by 5002 / 5003 / 5a47). The
+  # `|| true` keeps `set -e` from aborting when grep matches nothing.
+  hits=$(printf '%s%s' "$bc" "$drt" \
+         | grep -oE "0{24}(5002|5003|5a47)" \
+         | wc -l | tr -d ' ' || true)
+  if [ "${hits:-0}" -gt 0 ] && [ $((refs_creation + refs_runtime)) -eq 0 ]; then
+    echo "❌ $art has $hits synthetic library placeholder(s) baked in but"
+    echo "   linkReferences is empty. Downstream tools cannot patch the"
+    echo "   bytecode and will deploy contracts that revert at runtime."
+    echo "   Fix: remove the offending entry from contracts/foundry.toml"
+    echo "   [profile.default].libraries, or move it under [profile.test]."
+    exit 1
+  fi
+done
+
 for hex in "${poseidon_hex[@]}"; do
   src="contracts/poseidon/${hex}"
   if [ ! -f "$src" ]; then
