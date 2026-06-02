@@ -94,20 +94,29 @@ done
 # baked in by foundry.toml's libraries setting. Consumers that cast-send
 # those bytecodes deploy contracts that delegate-call dead addresses and
 # silently fail with OZ FailedCall(). Catch the regression here.
+#
+# Library-agnostic pattern: any 20-byte address consisting of >=32 leading
+# zero nibbles (i.e. numeric value < 2^32) is treated as a placeholder
+# candidate. Real on-chain addresses are essentially uniform random over
+# 2^160, so the chance of a legitimate address landing in this range is
+# ~1 in 2^128 — any hit in shipped bytecode is the foundry.toml regression
+# class. Catches future synthetic addresses (0x...6000, 0x...1234, etc.)
+# without enumerating each one. Precompile addresses (0x...0001-0x...000a)
+# match too but don't normally appear as PUSH32 constants in user
+# contracts that go through libraries.
 echo "🔍 Verifying shipped artifacts are properly linked"
 for art in "$staging/bytecode/"*.json; do
   bc=$(jq -r '.bytecode.object // empty' "$art")
   drt=$(jq -r '.deployedBytecode.object // empty' "$art")
   refs_creation=$(jq -r '.bytecode.linkReferences // {} | [.. | objects | select(has("start"))] | length' "$art")
   refs_runtime=$(jq -r '.deployedBytecode.linkReferences // {} | [.. | objects | select(has("start"))] | length' "$art")
-  # Match 20-byte address sequences that LOOK like synthetic placeholders
-  # (24 leading zero-hex nibbles followed by 5002 / 5003 / 5a47). The
   # `|| true` keeps `set -e` from aborting when grep matches nothing.
   hits=$(printf '%s%s' "$bc" "$drt" \
-         | grep -oE "0{24}(5002|5003|5a47)" \
+         | grep -oE "0{32}[0-9a-f]{8}" \
+         | grep -v "^0\{40\}$" \
          | wc -l | tr -d ' ' || true)
   if [ "${hits:-0}" -gt 0 ] && [ $((refs_creation + refs_runtime)) -eq 0 ]; then
-    echo "❌ $art has $hits synthetic library placeholder(s) baked in but"
+    echo "❌ $art has $hits placeholder-shaped address(es) baked in but"
     echo "   linkReferences is empty. Downstream tools cannot patch the"
     echo "   bytecode and will deploy contracts that revert at runtime."
     echo "   Fix: remove the offending entry from contracts/foundry.toml"

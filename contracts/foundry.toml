@@ -41,5 +41,21 @@ ignore = [
     "src/iden3-shims/SmtLib.sol",
 ]
 
+[profile.test]
+# Static library links for `forge test`. Tests deploy contracts whose
+# bytecode references SmtLib/PoseidonUnit; without pre-linking, forge
+# would have to redeploy each library on demand for every test, which
+# both slows the suite and pollutes traces. The default profile leaves
+# these out so `forge build` (the source of the release tarball)
+# produces bytecode with standard `__$<hash>$__` placeholders and
+# populated `linkReferences`, which downstream tooling patches at
+# deploy time. Production deploys (contracts/deploy-zeto.sh) pass
+# `--libraries` on the forge script invocation; they don't read these.
+libraries = [
+    "lib/iden3-contracts/contracts/lib/Poseidon.sol:PoseidonUnit2L:0x0000000000000000000000000000000000005002",
+    "lib/iden3-contracts/contracts/lib/Poseidon.sol:PoseidonUnit3L:0x0000000000000000000000000000000000005003",
+    "lib/iden3-contracts/contracts/lib/SmtLib.sol:SmtLib:0x0000000000000000000000000000000000005a47",
+]
+
 [rpc_endpoints]
 sandbox = "http://127.0.0.1:8545"
