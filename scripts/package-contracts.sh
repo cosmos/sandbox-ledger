@@ -95,15 +95,15 @@ done
 # those bytecodes deploy contracts that delegate-call dead addresses and
 # silently fail with OZ FailedCall(). Catch the regression here.
 #
-# Library-agnostic pattern: any 20-byte address consisting of >=32 leading
-# zero nibbles (i.e. numeric value < 2^32) is treated as a placeholder
-# candidate. Real on-chain addresses are essentially uniform random over
-# 2^160, so the chance of a legitimate address landing in this range is
-# ~1 in 2^128 — any hit in shipped bytecode is the foundry.toml regression
-# class. Catches future synthetic addresses (0x...6000, 0x...1234, etc.)
-# without enumerating each one. Precompile addresses (0x...0001-0x...000a)
-# match too but don't normally appear as PUSH32 constants in user
-# contracts that go through libraries.
+# Library-agnostic pattern: any 20-byte address with >=24 leading zero
+# nibbles followed by a 4-nibble trailer where the upper byte is non-zero.
+# That catches the previous synthetic placeholders (0x...5002 / 5003 /
+# 5a47) and any future ones (0x...6000, 0x...1234, etc.) without
+# enumerating each, while skipping legitimate small constants and the
+# precompile range (addresses <= 0x00ff have the upper byte zero).
+# Anchoring the regex on the non-zero trailer side-steps the
+# non-overlapping match problem that bites broader patterns in long
+# runs of PUSH32 zero padding.
 echo "🔍 Verifying shipped artifacts are properly linked"
 for art in "$staging/bytecode/"*.json; do
   bc=$(jq -r '.bytecode.object // empty' "$art")
@@ -112,8 +112,7 @@ for art in "$staging/bytecode/"*.json; do
   refs_runtime=$(jq -r '.deployedBytecode.linkReferences // {} | [.. | objects | select(has("start"))] | length' "$art")
   # `|| true` keeps `set -e` from aborting when grep matches nothing.
   hits=$(printf '%s%s' "$bc" "$drt" \
-         | grep -oE "0{32}[0-9a-f]{8}" \
-         | grep -v "^0\{40\}$" \
+         | grep -oE "0{24}([1-9a-f][0-9a-f]{3}|[0-9a-f][1-9a-f][0-9a-f]{2})" \
          | wc -l | tr -d ' ' || true)
   if [ "${hits:-0}" -gt 0 ] && [ $((refs_creation + refs_runtime)) -eq 0 ]; then
     echo "❌ $art has $hits placeholder-shaped address(es) baked in but"
